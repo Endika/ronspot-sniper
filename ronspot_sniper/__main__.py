@@ -27,7 +27,7 @@ def build(config: Config) -> RonspotClient:
 
 
 def print_report(report: Report, dry_run: bool) -> None:
-    if report.stopped:
+    if report.stopped and not report.stopped.startswith("sin red"):
         print(f"parado: {report.stopped}")
     for booking in report.booked:
         verb = "reservaría" if dry_run else "reservada"

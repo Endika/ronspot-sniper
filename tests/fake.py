@@ -43,6 +43,7 @@ class FakeRonspot:
         pending: list[str] | None = None,
         release: str = "release_ok.json",
         status: int = 200,
+        offline: bool = False,
     ) -> None:
         self.headers: dict[str, str] = {}
         self.cookies = FakeCookies()
@@ -53,11 +54,14 @@ class FakeRonspot:
         self._pending = list(pending or ["pending_ok.json"])
         self._release = release
         self._status = status
+        self._offline = offline
 
     def post(self, url, data=None, timeout=None, **kwargs):
         path = urlsplit(url).path
         fields = {k: str(v) for k, v in (data or {}).items()}
         self.calls.append((path, fields))
+        if self._offline:
+            raise requests.ConnectionError("el router se está reiniciando")
         if self._status != 200:
             return FakeResponse("", self._status)
         if path.endswith("GetAvalablevehicleTypeDayWise"):

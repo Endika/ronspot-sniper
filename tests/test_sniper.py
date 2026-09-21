@@ -137,3 +137,25 @@ def test_dry_run_looks_but_does_not_touch():
     assert len(report.booked) == 2
     assert "claimSpot" not in " ".join(fake.paths())
     assert slack.messages == [] and state.covered == {}
+
+
+def test_the_nightly_router_reboot_is_a_quiet_non_event():
+    """Dos minutos sin red cada madrugada: ni Slack, ni backoff, ni estado tocado."""
+    fake = FakeRonspot(offline=True)
+
+    report, state, slack = tick(fake)
+
+    assert report.stopped == "sin red"
+    assert slack.messages == []
+    assert state.backoff_level == 0 and not state.blocked(now=1.0)
+
+
+def test_after_the_router_is_back_the_next_tick_works_normally():
+    state = State(last_sweep=0.0)
+    tick(FakeRonspot(offline=True), state)
+
+    fake = FakeRonspot(weeks={"2026-10-05": "week_open.json"}, bookable={"2026-10-06"})
+    report, state, slack = tick(fake, state)
+
+    assert [b.date.isoformat() for b in report.booked] == ["2026-10-06"]
+    assert len(slack.messages) == 1

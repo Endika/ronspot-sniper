@@ -20,6 +20,10 @@ class SessionExpired(RuntimeError):
     """Ronspot ha devuelto el login en vez de datos: hay que re-sembrar la cookie."""
 
 
+class Unreachable(RuntimeError):
+    """No hay red. Pasa a diario: el router se reinicia a las 04:00 y tarda ~2 min."""
+
+
 class RateLimited(RuntimeError):
     def __init__(self, status: int) -> None:
         super().__init__(f"Ronspot respondió {status}")
@@ -106,8 +110,14 @@ class RonspotClient:
             self._http.cookies.set(name, value, domain="my.ronspot.ie")
         self._token = ""
 
+    def _fetch(self, path: str, data: Mapping[str, Any]):
+        try:
+            return self._http.post(f"{self.base_url}{path}", data=data, timeout=20)
+        except requests.RequestException as exc:
+            raise Unreachable(f"{path}: {exc}") from exc
+
     def _post(self, path: str, data: Mapping[str, Any]) -> dict[str, Any]:
-        response = self._http.post(f"{self.base_url}{path}", data=data, timeout=20)
+        response = self._fetch(path, data)
         if response.status_code in (401, 403, 429):
             raise RateLimited(response.status_code)
         response.raise_for_status()
@@ -137,7 +147,7 @@ class RonspotClient:
     def bookable(self, date: dt.date) -> bool:
         """La señal honesta: Ronspot solo ofrece el desplegable del coche si de verdad
         queda plaza para ti. `Spotavailable` del calendario se queda en 1 aunque no haya."""
-        response = self._http.post(f"{self.base_url}{VEHICLES}", timeout=20, data={
+        response = self._fetch(VEHICLES, {
             "booking_date": date.isoformat(),
             "GuId": self.guid,
             "car_park_id": self.zone_id,

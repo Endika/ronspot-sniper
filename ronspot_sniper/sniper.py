@@ -7,7 +7,7 @@ import logging
 from dataclasses import dataclass, field
 
 from . import policy
-from .client import Booking, Day, RateLimited, RonspotClient, SessionExpired
+from .client import Booking, Day, RateLimited, RonspotClient, SessionExpired, Unreachable
 from .config import Config
 from .state import State
 
@@ -74,6 +74,10 @@ def run_tick(
         report.stopped = f"rate limit {exc.status}: parado {delay / 60:.0f} min"
         log.warning(report.stopped)
         return report
+    except Unreachable as exc:
+        report.stopped = "sin red"
+        log.debug("sin red al mirar el calendario: %s", exc)
+        return report
     except SessionExpired:
         report.stopped = "sesión caducada"
         if not state.session_alert_sent:
@@ -106,6 +110,9 @@ def run_tick(
             delay = state.penalise(now)
             report.stopped = f"rate limit {exc.status} al mirar el coche: parado {delay / 60:.0f} min"
             break
+        except Unreachable:
+            report.stopped = "sin red"
+            break
         except SessionExpired:
             report.stopped = "sesión caducada al mirar el coche"
             break
@@ -123,6 +130,9 @@ def run_tick(
         except RateLimited as exc:
             delay = state.penalise(now)
             report.stopped = f"rate limit {exc.status} al reservar: parado {delay / 60:.0f} min"
+            break
+        except Unreachable:
+            report.stopped = "sin red al reservar"
             break
         except SessionExpired:
             report.stopped = "sesión caducada al reservar"

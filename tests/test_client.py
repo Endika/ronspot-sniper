@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from ronspot_sniper.client import RateLimited, RonspotClient, SessionExpired
+from ronspot_sniper.client import RateLimited, RonspotClient, SessionExpired, Unreachable
 from tests.fake import FakeRonspot, fixture
 
 GUID = "00000000-0000-0000-0000-000000000000"
@@ -115,3 +115,14 @@ def test_rate_limit_surfaces_as_its_own_error(status):
     with pytest.raises(RateLimited) as caught:
         build(FakeRonspot(status=status)).week(dt.date(2026, 9, 28))
     assert caught.value.status == status
+
+
+def test_a_network_outage_has_its_own_error():
+    """El router se reinicia a las 04:00; no es un fallo de Ronspot ni de la cookie."""
+    with pytest.raises(Unreachable):
+        build(FakeRonspot(offline=True)).week(dt.date(2026, 9, 28))
+
+
+def test_the_vehicle_check_also_survives_the_outage():
+    with pytest.raises(Unreachable):
+        build(FakeRonspot(offline=True)).bookable(dt.date(2026, 9, 28))
