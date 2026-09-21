@@ -13,8 +13,6 @@ from .state import State
 
 log = logging.getLogger(__name__)
 
-MAX_RECHAZOS = 3
-
 DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 
 
@@ -59,8 +57,9 @@ def run_tick(
     state.forget_past(today)
     sweep = full_sweep or (now - state.last_sweep) >= config.resync_seconds
     starts = (
-        policy.week_starts(today, config.max_weeks) if sweep
-        else policy.weeks_to_poll(today, config.snipe_weeks, config.weekdays, state.covered_dates())
+        policy.week_starts(today, config.horizon_days) if sweep
+        else policy.weeks_to_poll(today, config.weekdays, state.covered_dates(),
+                                  config.horizon_days)
     )
     if not starts:
         return report
@@ -87,7 +86,7 @@ def run_tick(
 
     state.relax()
     state.session_alert_sent = False
-    mine = policy.already_mine(days, config.weekdays)
+    mine = policy.already_mine(days, config.weekdays, today, config.horizon_days)
     report.mine = mine
     if sweep:
         state.last_sweep = now
@@ -95,12 +94,9 @@ def run_tick(
     else:
         state.covered.update({d.date.isoformat(): d.bay for d in mine})
 
-    until = None if sweep else today + policy.WEEK * config.snipe_weeks
-    for day in policy.candidates(days, config.weekdays, today, until):
+    for day in policy.candidates(days, config.weekdays, today, config.horizon_days):
         key = day.date.isoformat()
         if key in state.covered:
-            continue
-        if state.rejected.get(key, 0) >= MAX_RECHAZOS:
             continue
         try:
             if not client.bookable(day.date):

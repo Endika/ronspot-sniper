@@ -5,15 +5,20 @@ alguien libera hueco. Corre en el Pi, un tic por minuto desde cron.
 
 ## Lo que hay que saber antes de tocar nada
 
-**El calendario miente.** `Spotavailable` y `AvailableParkingBay` de
-`POST /member/Claim_release` salen a 1 en días que están llenos y a 0 en días que sí se
-pueden reservar. Reservar guiándose por ese campo devuelve `Success`, deja la petición en
-cola, y Ronspot la rechaza minutos después mandándote una notificación al móvil.
+**La ventana de reserva es de 14 días.** Medido el 2026-09-22: el último día reservable
+era hoy+13 y a partir de hoy+14 no se puede reservar nada. Mirar más lejos solo gasta
+peticiones, y es la trampa que explica todo lo demás.
 
-**La señal buena es el desplegable del coche.** `GetAvalablevehicleTypeDayWise` devuelve
-un `<option>` con tu matrícula solo cuando de verdad queda plaza para ti; si no, devuelve
-`0`. Es lo único que decide, y está en `RonspotClient.bookable()`. Está medido, no
-supuesto: la única reserva que cuajó fue la única con `<option>` presente.
+**Fuera de plazo, Ronspot marca todos los días como libres.** `Spotavailable` y
+`AvailableParkingBay` valen 1 en cada día futuro fuera de ventana, fines de semana
+incluidos. Reservar guiándose por ese campo devuelve `Success`, deja la petición en cola y
+Ronspot la rechaza minutos después mandando una notificación al móvil.
+
+**La puerta es `RonspotClient.bookable()`**, que consulta
+`GetAvalablevehicleTypeDayWise`: devuelve un `<option>` con la matrícula solo cuando de
+verdad se puede reservar ese día. En la muestra medida coincide siempre con el inverso de
+`Spotavailable`, así que no es información independiente — pero es la polaridad que
+concuerda con la realidad, y es la única que se usa para decidir.
 
 **Confirmar no es opcional.** `claimSpot` responde `"In Process"` con un `QueueProcessId`.
 La reserva solo es firme cuando `getPendingClaimStatus` devuelve `isClaimSuccessful: 1`
@@ -21,6 +26,9 @@ con su `SpotID` y su `ParkingBayNumber`.
 
 **`isClaimPendingRequest: 1` no significa "tengo algo en cola"**, significa "este día no es
 tuyo". Sale en fechas que no has pedido nunca.
+
+**Un rechazo no descarta el día.** Suele significar que otro ha ganado la carrera por
+segundos, así que el script vuelve a intentarlo en el tic siguiente, siempre.
 
 ## Uso
 

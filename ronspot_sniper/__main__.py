@@ -64,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
         for day in report.mine:
             print(f"  {es_fecha(day.date)} — {day.bay or 'sin número'}")
         pending = [
-            d for d in policy.wanted_dates(today, config.max_weeks, config.weekdays)
+            d for d in policy.wanted_dates(today, config.weekdays, config.horizon_days)
             if d.isoformat() not in state.covered
         ]
         print("\nsin cubrir:")

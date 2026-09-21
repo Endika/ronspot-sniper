@@ -15,7 +15,7 @@ def config(**kwargs) -> Config:
     base = dict(
         guid=GUID, zone_id=1908, base_url="https://my.ronspot.ie",
         vehicle_type_id=2, vehicle_fuel_id=2, weekdays=(1, 3),
-        max_weeks=12, snipe_weeks=1, resync_seconds=1800,
+        horizon_days=14, resync_seconds=1800,
         confirm_tries=3, confirm_gap=0.0,
         slack_token="t", slack_channel="c",
         session_path=Path("/dev/null"), state_path=Path("/dev/null"),
@@ -91,14 +91,15 @@ def test_a_queued_claim_that_never_confirms_counts_as_rejected():
     assert state.rejected["2026-10-06"] == 1
 
 
-def test_a_date_rejected_three_times_is_dropped():
+def test_a_rejected_day_is_tried_again_on_the_next_tick():
+    """Un rechazo suele ser que otro te ha ganado la carrera, no que el día sea imposible."""
+    state = State(last_sweep=0.0, rejected={"2026-10-06": 7})
     fake = FakeRonspot(weeks={"2026-10-05": "week_open.json"}, bookable={"2026-10-06"})
-    state = State(last_sweep=0.0, rejected={"2026-10-06": 3})
 
-    report, _, _ = tick(fake, state)
+    report, state, _ = tick(fake, state)
 
-    assert [d.isoformat() for d in report.phantom] == ["2026-10-08"]
-    assert "claimSpot" not in " ".join(fake.paths())
+    assert [b.date.isoformat() for b in report.booked] == ["2026-10-06"]
+    assert "2026-10-06" not in state.rejected
 
 
 def test_an_expired_cookie_is_announced_once_and_only_once():

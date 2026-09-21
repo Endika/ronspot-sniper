@@ -18,8 +18,7 @@ class Config:
     vehicle_type_id: int
     vehicle_fuel_id: int
     weekdays: tuple[int, ...]
-    max_weeks: int
-    snipe_weeks: int
+    horizon_days: int
     confirm_tries: int
     confirm_gap: float
     resync_seconds: int
@@ -41,8 +40,7 @@ class Config:
             vehicle_type_id=int(ronspot.get("vehicle_type_id", 2)),
             vehicle_fuel_id=int(ronspot.get("vehicle_fuel_id", 2)),
             weekdays=tuple(sniper.get("weekdays", [1, 3])),
-            max_weeks=int(sniper.get("max_weeks", 12)),
-            snipe_weeks=int(sniper.get("snipe_weeks", 3)),
+            horizon_days=int(sniper.get("horizon_days", 14)),
             confirm_tries=int(sniper.get("confirm_tries", 8)),
             confirm_gap=float(sniper.get("confirm_gap", 1.5)),
             resync_seconds=int(sniper.get("resync_minutes", 30)) * 60,
