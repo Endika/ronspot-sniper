@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from . import policy
 from .client import Booking, Day, RateLimited, RonspotClient, SessionExpired, Unreachable
 from .config import Config
+from .notify import Notifier
 from .state import State
 
 log = logging.getLogger(__name__)
@@ -42,7 +43,7 @@ def run_tick(
     config: Config,
     state: State,
     client: RonspotClient,
-    notifier,
+    notifier: Notifier,
     *,
     today: dt.date,
     now: float,
@@ -57,9 +58,11 @@ def run_tick(
     state.forget_past(today)
     sweep = full_sweep or (now - state.last_sweep) >= config.resync_seconds
     starts = (
-        policy.week_starts(today, config.horizon_days) if sweep
-        else policy.weeks_to_poll(today, config.weekdays, state.covered_dates(),
-                                  config.horizon_days)
+        policy.week_starts(today, config.horizon_days)
+        if sweep
+        else policy.weeks_to_poll(
+            today, config.weekdays, state.covered_dates(), config.horizon_days
+        )
     )
     if not starts:
         return report
@@ -108,7 +111,9 @@ def run_tick(
                 continue
         except RateLimited as exc:
             delay = state.penalise(now)
-            report.stopped = f"rate limit {exc.status} al mirar el coche: parado {delay / 60:.0f} min"
+            report.stopped = (
+                f"rate limit {exc.status} al mirar el coche: parado {delay / 60:.0f} min"
+            )
             break
         except Unreachable:
             report.stopped = "sin red"
@@ -125,8 +130,7 @@ def run_tick(
                 state.rejected[key] = state.rejected.get(key, 0) + 1
                 report.failed.append((day.date, message or "rechazada sin motivo"))
                 continue
-            booking = client.confirm(
-                day.date, tries=config.confirm_tries, gap=config.confirm_gap)
+            booking = client.confirm(day.date, tries=config.confirm_tries, gap=config.confirm_gap)
         except RateLimited as exc:
             delay = state.penalise(now)
             report.stopped = f"rate limit {exc.status} al reservar: parado {delay / 60:.0f} min"

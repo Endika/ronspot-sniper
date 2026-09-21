@@ -1,0 +1,26 @@
+[project]
+name = "ronspot-sniper"
+version = "0.1.0"
+description = "Caza plazas de parking en Ronspot en cuanto alguien libera hueco"
+requires-python = ">=3.11"
+dependencies = ["requests>=2.31"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "RET", "ARG", "PTH", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ARG"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unreachable = true
+files = ["ronspot_sniper", "tests"]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false

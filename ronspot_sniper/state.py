@@ -24,12 +24,12 @@ class State:
     last_sweep: float = 0.0
 
     @classmethod
-    def load(cls, path: Path) -> "State":
+    def load(cls, path: Path) -> State:
         try:
             raw = json.loads(path.read_text())
         except (OSError, ValueError):
             return cls()
-        known = {f for f in cls.__dataclass_fields__}
+        known = set(cls.__dataclass_fields__)
         return cls(**{k: v for k, v in raw.items() if k in known})
 
     def save(self, path: Path) -> None:
@@ -38,7 +38,7 @@ class State:
         try:
             with os.fdopen(fd, "w") as handle:
                 json.dump(asdict(self), handle, indent=1)
-            os.replace(tmp, path)
+            Path(tmp).replace(path)
             path.chmod(0o600)
         except BaseException:
             Path(tmp).unlink(missing_ok=True)
@@ -49,7 +49,7 @@ class State:
 
     def penalise(self, now: float | None = None) -> float:
         now = now if now is not None else time.time()
-        delay = min(BASE_BACKOFF * (2 ** self.backoff_level), MAX_BACKOFF)
+        delay: float = min(BASE_BACKOFF * (2**self.backoff_level), MAX_BACKOFF)
         self.backoff_level += 1
         self.blocked_until = now + delay
         return delay
@@ -62,7 +62,9 @@ class State:
         return {dt.date.fromisoformat(d) for d in self.covered}
 
     def forget_past(self, today: dt.date) -> None:
-        self.covered = {d: bay for d, bay in self.covered.items()
-                        if dt.date.fromisoformat(d) >= today}
-        self.rejected = {d: n for d, n in self.rejected.items()
-                         if dt.date.fromisoformat(d) >= today}
+        self.covered = {
+            d: bay for d, bay in self.covered.items() if dt.date.fromisoformat(d) >= today
+        }
+        self.rejected = {
+            d: n for d, n in self.rejected.items() if dt.date.fromisoformat(d) >= today
+        }

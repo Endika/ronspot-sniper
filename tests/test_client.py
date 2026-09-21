@@ -11,7 +11,7 @@ WEEK_OPEN_TOKEN = json.loads(fixture("week_open.json"))["ronspot_token"]
 
 
 def build(fake: FakeRonspot) -> RonspotClient:
-    return RonspotClient({"ci_session": "x"}, GUID, 1908, session=fake)
+    return RonspotClient({"ci_session": "x"}, GUID, 1908, transport=fake)
 
 
 def test_week_parses_the_real_calendar():
@@ -104,6 +104,7 @@ def test_expired_cookie_is_told_apart_from_a_real_answer():
     class Login(FakeRonspot):
         def post(self, url, data=None, timeout=None, **kwargs):
             from tests.fake import FakeResponse, fixture
+
             return FakeResponse(fixture("login.html"))
 
     with pytest.raises(SessionExpired):

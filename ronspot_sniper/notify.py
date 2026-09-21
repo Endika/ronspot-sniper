@@ -3,15 +3,24 @@
 from __future__ import annotations
 
 import logging
+from typing import Protocol
 
 import requests
 
 log = logging.getLogger(__name__)
+
+
+class Notifier(Protocol):
+    def send(self, text: str) -> bool: ...
+
+
 SLACK_API = "https://slack.com/api/chat.postMessage"
 
 
 class Slack:
-    def __init__(self, token: str, channel: str, *, session: requests.Session | None = None) -> None:
+    def __init__(
+        self, token: str, channel: str, *, session: requests.Session | None = None
+    ) -> None:
         self._token = token
         self._channel = channel
         self._http = session or requests.Session()

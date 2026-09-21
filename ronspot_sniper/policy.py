@@ -69,7 +69,8 @@ def candidates(
     """
     end = window_end(today, horizon_days)
     hits = [
-        day for day in days
+        day
+        for day in days
         if day.date.weekday() in weekdays and today <= day.date < end and day.worth_trying
     ]
     return sorted(hits, key=lambda d: d.date)
@@ -84,8 +85,11 @@ def already_mine(
     """Lo que ya tengo dentro de la ventana. Fuera de ella no hay nada que cubrir."""
     end = window_end(today, horizon_days)
     return sorted(
-        (day for day in days
-         if day.mine and day.date.weekday() in weekdays and today <= day.date < end),
+        (
+            day
+            for day in days
+            if day.mine and day.date.weekday() in weekdays and today <= day.date < end
+        ),
         key=lambda d: d.date,
     )
 

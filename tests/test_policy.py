@@ -36,8 +36,11 @@ def test_wanted_dates_stops_at_the_edge_of_the_window():
 
 
 def test_week_starts_cover_the_window_and_no_more():
-    assert policy.week_starts(HOY) == [dt.date(2026, 9, 21), dt.date(2026, 9, 28),
-                                       dt.date(2026, 10, 5)]
+    assert policy.week_starts(HOY) == [
+        dt.date(2026, 9, 21),
+        dt.date(2026, 9, 28),
+        dt.date(2026, 10, 5),
+    ]
 
 
 def test_candidates_ignore_what_the_calendar_claims_about_availability():
@@ -51,11 +54,11 @@ def test_candidates_ignore_what_the_calendar_claims_about_availability():
 
 def test_candidates_skip_mine_blocked_past_out_of_window_and_other_weekdays():
     dias = [
-        day("2026-09-21"),                 # lunes
-        day("2026-09-15"),                 # martes pasado
+        day("2026-09-21"),  # lunes
+        day("2026-09-15"),  # martes pasado
         day("2026-09-24", mine=True),
         day("2026-09-29", blocked=True),
-        day("2026-10-06"),                 # fuera de plazo
+        day("2026-10-06"),  # fuera de plazo
         day("2026-10-01"),
     ]
 

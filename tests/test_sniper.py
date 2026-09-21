@@ -1,9 +1,10 @@
 import datetime as dt
 from pathlib import Path
+from typing import Any
 
-from ronspot_sniper.config import Config
 from ronspot_sniper.client import RonspotClient
-from ronspot_sniper.sniper import run_tick
+from ronspot_sniper.config import Config
+from ronspot_sniper.sniper import Report, run_tick
 from ronspot_sniper.state import State
 from tests.fake import FakeRonspot, FakeSlack
 
@@ -11,22 +12,38 @@ GUID = "00000000-0000-0000-0000-000000000000"
 LUNES_ABIERTO = dt.date(2026, 10, 5)
 
 
-def config(**kwargs) -> Config:
-    base = dict(
-        guid=GUID, zone_id=1908, base_url="https://my.ronspot.ie",
-        vehicle_type_id=2, vehicle_fuel_id=2, weekdays=(1, 3),
-        horizon_days=14, resync_seconds=1800,
-        confirm_tries=3, confirm_gap=0.0,
-        slack_token="t", slack_channel="c",
-        session_path=Path("/dev/null"), state_path=Path("/dev/null"),
-    )
+def config(**kwargs: Any) -> Config:
+    base = {
+        "guid": GUID,
+        "zone_id": 1908,
+        "base_url": "https://my.ronspot.ie",
+        "vehicle_type_id": 2,
+        "vehicle_fuel_id": 2,
+        "weekdays": (1, 3),
+        "horizon_days": 14,
+        "resync_seconds": 1800,
+        "confirm_tries": 3,
+        "confirm_gap": 0.0,
+        "slack_token": "t",
+        "slack_channel": "c",
+        "session_path": Path("/dev/null"),
+        "state_path": Path("/dev/null"),
+    }
     return Config(**{**base, **kwargs})
 
 
-def tick(fake, state=None, slack=None, *, today=LUNES_ABIERTO, now=0.0, **kwargs):
+def tick(
+    fake: FakeRonspot,
+    state: State | None = None,
+    slack: FakeSlack | None = None,
+    *,
+    today: dt.date = LUNES_ABIERTO,
+    now: float = 0.0,
+    **kwargs: bool,
+) -> tuple[Report, State, FakeSlack]:
     slack = slack or FakeSlack()
     state = state if state is not None else State(last_sweep=now)
-    client = RonspotClient({"ci_session": "x"}, GUID, 1908, session=fake)
+    client = RonspotClient({"ci_session": "x"}, GUID, 1908, transport=fake)
     report = run_tick(config(), state, client, slack, today=today, now=now, **kwargs)
     return report, state, slack
 
@@ -44,8 +61,9 @@ def test_a_free_tuesday_is_claimed_confirmed_and_announced():
 
 
 def test_two_days_at_once_are_announced_in_a_single_message():
-    fake = FakeRonspot(weeks={"2026-10-05": "week_open.json"},
-                       bookable={"2026-10-06", "2026-10-08"})
+    fake = FakeRonspot(
+        weeks={"2026-10-05": "week_open.json"}, bookable={"2026-10-06", "2026-10-08"}
+    )
 
     report, _, slack = tick(fake)
 
@@ -59,7 +77,7 @@ def test_the_lying_calendar_never_triggers_a_claim():
     Es el caso que mandó dos notificaciones al móvil, y no debe repetirse."""
     fake = FakeRonspot(weeks={"2026-10-05": "week_open.json"}, bookable=set())
 
-    report, state, slack = tick(fake)
+    report, _, slack = tick(fake)
 
     assert report.booked == [] and report.failed == []
     assert [d.isoformat() for d in report.phantom] == ["2026-10-06", "2026-10-08"]
@@ -68,8 +86,9 @@ def test_the_lying_calendar_never_triggers_a_claim():
 
 
 def test_days_already_booked_are_left_alone():
-    fake = FakeRonspot(weeks={"2026-09-28": "week_full.json"},
-                       bookable={"2026-09-29", "2026-10-01"})
+    fake = FakeRonspot(
+        weeks={"2026-09-28": "week_full.json"}, bookable={"2026-09-29", "2026-10-01"}
+    )
 
     report, state, slack = tick(fake, today=dt.date(2026, 9, 28))
 
@@ -80,10 +99,13 @@ def test_days_already_booked_are_left_alone():
 
 
 def test_a_queued_claim_that_never_confirms_counts_as_rejected():
-    fake = FakeRonspot(weeks={"2026-10-05": "week_open.json"},
-                       bookable={"2026-10-06"}, pending=["pending_wait.json"])
+    fake = FakeRonspot(
+        weeks={"2026-10-05": "week_open.json"},
+        bookable={"2026-10-06"},
+        pending=["pending_wait.json"],
+    )
     state = State(last_sweep=0.0)
-    client = RonspotClient({"ci_session": "x"}, GUID, 1908, session=fake)
+    client = RonspotClient({"ci_session": "x"}, GUID, 1908, transport=fake)
 
     report = run_tick(config(), state, client, FakeSlack(), today=LUNES_ABIERTO, now=0.0)
 
@@ -129,8 +151,9 @@ def test_a_rate_limit_parks_the_next_tick_without_a_single_request():
 
 
 def test_dry_run_looks_but_does_not_touch():
-    fake = FakeRonspot(weeks={"2026-10-05": "week_open.json"},
-                       bookable={"2026-10-06", "2026-10-08"})
+    fake = FakeRonspot(
+        weeks={"2026-10-05": "week_open.json"}, bookable={"2026-10-06", "2026-10-08"}
+    )
 
     report, state, slack = tick(fake, dry_run=True)
 

@@ -35,8 +35,12 @@ def test_a_good_answer_clears_the_punishment():
 
 def test_state_survives_a_round_trip(tmp_path):
     path = tmp_path / "state.json"
-    original = State(covered={"2026-09-24": "21 Nivel 4"}, rejected={"2026-09-22": 2},
-                     backoff_level=2, last_sweep=99.0)
+    original = State(
+        covered={"2026-09-24": "21 Nivel 4"},
+        rejected={"2026-09-22": 2},
+        backoff_level=2,
+        last_sweep=99.0,
+    )
 
     original.save(path)
     leido = State.load(path)
@@ -64,8 +68,10 @@ def test_unknown_keys_from_an_older_version_are_ignored(tmp_path):
 
 
 def test_past_days_are_forgotten_so_the_file_never_grows():
-    state = State(covered={"2026-09-15": "vieja", "2026-09-24": "21 Nivel 4"},
-                  rejected={"2026-09-15": 3, "2026-09-24": 1})
+    state = State(
+        covered={"2026-09-15": "vieja", "2026-09-24": "21 Nivel 4"},
+        rejected={"2026-09-15": 3, "2026-09-24": 1},
+    )
 
     state.forget_past(dt.date(2026, 9, 22))
 

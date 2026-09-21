@@ -28,8 +28,8 @@ class FakeResponse:
             raise requests.HTTPError(f"HTTP {self.status_code}")
 
 
-class FakeCookies(dict):
-    def set(self, name, value, **kwargs):
+class FakeCookies(dict[str, str]):
+    def set(self, name: str, value: str, **kwargs: object) -> None:
         self[name] = value
 
 
@@ -47,7 +47,7 @@ class FakeRonspot:
     ) -> None:
         self.headers: dict[str, str] = {}
         self.cookies = FakeCookies()
-        self.calls: list[tuple[str, dict]] = []
+        self.calls: list[tuple[str, dict[str, str]]] = []
         self._weeks = weeks or {}
         self._claim = claim
         self._bookable = bookable if bookable is not None else set()
@@ -67,7 +67,8 @@ class FakeRonspot:
         if path.endswith("GetAvalablevehicleTypeDayWise"):
             if fields.get("booking_date") in self._bookable:
                 return FakeResponse(
-                    '<select name="vehicletype"><option value="2">TESTPLATE</option></select>')
+                    '<select name="vehicletype"><option value="2">TESTPLATE</option></select>'
+                )
             return FakeResponse("0")
         if path.endswith("claimSpot"):
             return FakeResponse(fixture(self._claim))
@@ -85,7 +86,7 @@ class FakeRonspot:
     def paths(self) -> list[str]:
         return [p for p, _ in self.calls]
 
-    def body(self, suffix: str) -> dict:
+    def body(self, suffix: str) -> dict[str, str]:
         for path, fields in self.calls:
             if path.endswith(suffix):
                 return fields

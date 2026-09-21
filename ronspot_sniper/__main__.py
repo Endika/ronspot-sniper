@@ -54,8 +54,9 @@ def main(argv: list[str] | None = None) -> int:
     today, now = dt.date.today(), time.time()
 
     if args.status:
-        report = run_tick(config, state, client, Silent(), today=today, now=now,
-                          dry_run=True, full_sweep=True)
+        report = run_tick(
+            config, state, client, Silent(), today=today, now=now, dry_run=True, full_sweep=True
+        )
         if report.stopped:
             print(f"parado: {report.stopped}")
             return 1
@@ -64,7 +65,8 @@ def main(argv: list[str] | None = None) -> int:
         for day in report.mine:
             print(f"  {es_fecha(day.date)} — {day.bay or 'sin número'}")
         pending = [
-            d for d in policy.wanted_dates(today, config.weekdays, config.horizon_days)
+            d
+            for d in policy.wanted_dates(today, config.weekdays, config.horizon_days)
             if d.isoformat() not in state.covered
         ]
         print("\nsin cubrir:")

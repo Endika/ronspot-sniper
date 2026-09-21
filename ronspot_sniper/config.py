@@ -28,7 +28,7 @@ class Config:
     state_path: Path
 
     @classmethod
-    def load(cls, path: Path) -> "Config":
+    def load(cls, path: Path) -> Config:
         raw = tomllib.loads(path.read_text())
         ronspot, sniper = raw["ronspot"], raw.get("sniper", {})
         slack, paths = raw.get("slack", {}), raw.get("paths", {})

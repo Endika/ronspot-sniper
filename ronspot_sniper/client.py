@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import datetime as dt
 import time
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable, Mapping
+from typing import Any, Protocol
 
 import requests
 
@@ -18,6 +19,30 @@ VEHICLES = "/member/Claim_release/GetAvalablevehicleTypeDayWise"
 
 class SessionExpired(RuntimeError):
     """Ronspot ha devuelto el login en vez de datos: hay que re-sembrar la cookie."""
+
+
+class Response(Protocol):
+    @property
+    def status_code(self) -> int: ...
+
+    @property
+    def text(self) -> str: ...
+
+    def json(self) -> Any: ...
+
+    def raise_for_status(self) -> None: ...
+
+
+class Transport(Protocol):
+    """Lo único que el cliente necesita de `requests.Session`; los tests inyectan un doble."""
+
+    def post(
+        self,
+        url: str,
+        data: Mapping[str, Any] | None = ...,
+        *,
+        timeout: float | None = ...,
+    ) -> Response: ...
 
 
 class Unreachable(RuntimeError):
@@ -93,24 +118,30 @@ class RonspotClient:
         base_url: str = "https://my.ronspot.ie",
         vehicle_type_id: int = 2,
         vehicle_fuel_id: int = 2,
-        session: requests.Session | None = None,
+        transport: Transport | None = None,
     ) -> None:
         self.guid = guid
         self.zone_id = zone_id
         self.base_url = base_url.rstrip("/")
         self.vehicle_type_id = vehicle_type_id
         self.vehicle_fuel_id = vehicle_fuel_id
-        self._http = session or requests.Session()
-        self._http.headers.update({
-            "X-Requested-With": "XMLHttpRequest",
-            "User-Agent": "Mozilla/5.0 (X11; Linux armv7l) ronspot-sniper",
-            "Referer": f"{self.base_url}{CALENDAR}",
-        })
-        for name, value in cookies.items():
-            self._http.cookies.set(name, value, domain="my.ronspot.ie")
+        if transport is None:
+            session: requests.Session = requests.Session()
+            session.headers.update(
+                {
+                    "X-Requested-With": "XMLHttpRequest",
+                    "User-Agent": "Mozilla/5.0 (X11; Linux armv7l) ronspot-sniper",
+                    "Referer": f"{self.base_url}{CALENDAR}",
+                }
+            )
+            for name, value in cookies.items():
+                session.cookies.set(name, value, domain="my.ronspot.ie")
+            self._http: Transport = session
+        else:
+            self._http = transport
         self._token = ""
 
-    def _fetch(self, path: str, data: Mapping[str, Any]):
+    def _fetch(self, path: str, data: Mapping[str, Any]) -> Response:
         try:
             return self._http.post(f"{self.base_url}{path}", data=data, timeout=20)
         except requests.RequestException as exc:
@@ -125,7 +156,7 @@ class RonspotClient:
         if body.lstrip().startswith("<") or "login-form" in body:
             raise SessionExpired(path)
         try:
-            payload = response.json()
+            payload: dict[str, Any] = response.json()
         except ValueError as exc:
             raise SessionExpired(f"{path}: respuesta no es JSON") from exc
         token = payload.get("ronspot_token")
@@ -134,27 +165,33 @@ class RonspotClient:
         return payload
 
     def week(self, start: dt.date) -> Week:
-        payload = self._post(CALENDAR, {
-            "car_park_id": self.zone_id,
-            "CollegesGuID": self.guid,
-            "StartDate": start.isoformat(),
-            "refreshicon": "1",
-            "filterByJson": "",
-        })
+        payload = self._post(
+            CALENDAR,
+            {
+                "car_park_id": self.zone_id,
+                "CollegesGuID": self.guid,
+                "StartDate": start.isoformat(),
+                "refreshicon": "1",
+                "filterByJson": "",
+            },
+        )
         days = tuple(_parse_day(raw) for raw in payload.get("future_dates", []))
         return Week(start, days)
 
     def bookable(self, date: dt.date) -> bool:
         """La señal honesta: Ronspot solo ofrece el desplegable del coche si de verdad
         queda plaza para ti. `Spotavailable` del calendario se queda en 1 aunque no haya."""
-        response = self._fetch(VEHICLES, {
-            "booking_date": date.isoformat(),
-            "GuId": self.guid,
-            "car_park_id": self.zone_id,
-            "filterByJson": "",
-            "liftSpotAvailable": 1,
-            "call_from": "calendar",
-        })
+        response = self._fetch(
+            VEHICLES,
+            {
+                "booking_date": date.isoformat(),
+                "GuId": self.guid,
+                "car_park_id": self.zone_id,
+                "filterByJson": "",
+                "liftSpotAvailable": 1,
+                "call_from": "calendar",
+            },
+        )
         if response.status_code in (401, 403, 429):
             raise RateLimited(response.status_code)
         response.raise_for_status()
@@ -166,17 +203,20 @@ class RonspotClient:
         """Pide la plaza. Devuelve (aceptada, mensaje); la reserva aún no es firme."""
         if not self._token:
             self.week(date - dt.timedelta(days=date.weekday()))
-        payload = self._post(CLAIM, {
-            "booking_date": date.isoformat(),
-            "CollegesGuID": self.guid,
-            "day_no": date.day,
-            "car_park_id": self.zone_id,
-            "VehicleTypeId": self.vehicle_type_id,
-            "VehicleFuelId": self.vehicle_fuel_id,
-            "VehicleAccessibleId": "",
-            "VehicleShareableId": "",
-            "ronspot_token": self._token,
-        })
+        payload = self._post(
+            CLAIM,
+            {
+                "booking_date": date.isoformat(),
+                "CollegesGuID": self.guid,
+                "day_no": date.day,
+                "car_park_id": self.zone_id,
+                "VehicleTypeId": self.vehicle_type_id,
+                "VehicleFuelId": self.vehicle_fuel_id,
+                "VehicleAccessibleId": "",
+                "VehicleShareableId": "",
+                "ronspot_token": self._token,
+            },
+        )
         ok = _int(payload.get("ResponseCode")) == 200
         return ok, str(payload.get("ErrorMessage") or payload.get("Message") or "")
 
@@ -190,13 +230,16 @@ class RonspotClient:
     ) -> Booking | None:
         """Sondea la cola de Ronspot hasta que la reserva pasa de 'In Process' a firme."""
         for attempt in range(tries):
-            payload = self._post(PENDING, {
-                "date": date.isoformat(),
-                "GuId": self.guid,
-                "ZoneID": self.zone_id,
-                "isGuest": "0",
-                "Type": "1",
-            })
+            payload = self._post(
+                PENDING,
+                {
+                    "date": date.isoformat(),
+                    "GuId": self.guid,
+                    "ZoneID": self.zone_id,
+                    "isGuest": "0",
+                    "Type": "1",
+                },
+            )
             schedule: Iterable[Mapping[str, Any]] = payload.get("Records", {}).get("Schedule", [])
             for row in schedule:
                 if str(row.get("Full_Date")) != date.isoformat():
@@ -209,13 +252,16 @@ class RonspotClient:
         return None
 
     def release(self, booking: Booking) -> bool:
-        payload = self._post(RELEASE, {
-            "release_date": booking.date.isoformat(),
-            "CollegesGuID": self.guid,
-            "day_no": booking.date.day,
-            "spot": booking.bay,
-            "SpotID": booking.spot_id,
-            "car_park_id": self.zone_id,
-            "ronspot_token": self._token,
-        })
+        payload = self._post(
+            RELEASE,
+            {
+                "release_date": booking.date.isoformat(),
+                "CollegesGuID": self.guid,
+                "day_no": booking.date.day,
+                "spot": booking.bay,
+                "SpotID": booking.spot_id,
+                "car_park_id": self.zone_id,
+                "ronspot_token": self._token,
+            },
+        )
         return _int(payload.get("ResponseCode")) == 200
