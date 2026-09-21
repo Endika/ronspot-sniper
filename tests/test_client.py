@@ -7,11 +7,13 @@ from ronspot_sniper.client import RateLimited, RonspotClient, SessionExpired, Un
 from tests.fake import FakeRonspot, fixture
 
 GUID = "00000000-0000-0000-0000-000000000000"
+ZONE = 1234
 WEEK_OPEN_TOKEN = json.loads(fixture("week_open.json"))["ronspot_token"]
+CLAIM_TOKEN = json.loads(fixture("claim_ok.json"))["ronspot_token"]
 
 
 def build(fake: FakeRonspot) -> RonspotClient:
-    return RonspotClient({"ci_session": "x"}, GUID, 1908, transport=fake)
+    return RonspotClient({"ci_session": "x"}, GUID, ZONE, transport=fake)
 
 
 def test_week_parses_the_real_calendar():
@@ -54,7 +56,7 @@ def test_claim_sends_exactly_what_the_browser_sent():
         "booking_date": "2026-10-08",
         "CollegesGuID": GUID,
         "day_no": "8",
-        "car_park_id": "1908",
+        "car_park_id": str(ZONE),
         "VehicleTypeId": "2",
         "VehicleFuelId": "2",
         "VehicleAccessibleId": "",
@@ -80,7 +82,7 @@ def test_claim_rotates_the_token_for_the_next_call():
     client.claim(dt.date(2026, 10, 15))
 
     segundo = [f for p, f in fake.calls if p.endswith("claimSpot")][1]
-    assert segundo["ronspot_token"] == "fbdfb3c7b885ace40aa4bc14721c341e"
+    assert segundo["ronspot_token"] == CLAIM_TOKEN
 
 
 def test_confirm_waits_for_the_queue_then_returns_the_bay():
@@ -127,3 +129,31 @@ def test_a_network_outage_has_its_own_error():
 def test_the_vehicle_check_also_survives_the_outage():
     with pytest.raises(Unreachable):
         build(FakeRonspot(offline=True)).bookable(dt.date(2026, 9, 28))
+
+
+def test_a_server_error_is_not_a_crash():
+    """Un 500 de Ronspot rompía el tic con traceback y dejaba el estado sin guardar."""
+    with pytest.raises(Unreachable):
+        build(FakeRonspot(status=500)).week(dt.date(2026, 9, 28))
+
+
+def test_a_login_page_on_the_vehicle_check_is_not_read_as_availability():
+    """`bookable()` se saltaba el centinela: un HTML con un <select> colaba como plaza."""
+    html = '<!DOCTYPE html><select id="lang"><option>es</option></select><form id="login-form">'
+    fake = FakeRonspot(vehicles_body=html)
+
+    with pytest.raises(SessionExpired):
+        build(fake).bookable(dt.date(2026, 9, 30))
+
+
+def test_a_rate_limit_on_the_vehicle_check_is_told_apart():
+    with pytest.raises(RateLimited):
+        build(FakeRonspot(vehicles_status=429)).bookable(dt.date(2026, 9, 30))
+
+
+def test_an_unreadable_day_is_skipped_instead_of_killing_the_week():
+    from ronspot_sniper.client import _parse_day
+
+    assert _parse_day({"Full_Date": "no-es-fecha"}) is None
+    assert _parse_day({"Spotavailable": 1}) is None
+    assert _parse_day({"Full_Date": "2026-09-30"}) is not None

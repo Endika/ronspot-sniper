@@ -6,6 +6,7 @@ import logging
 import sys
 import time
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from . import policy
 from .client import RonspotClient
@@ -13,6 +14,11 @@ from .config import DEFAULT_CONFIG, Config, load_cookies
 from .notify import Silent, Slack
 from .sniper import Report, es_fecha, run_tick
 from .state import State
+
+ZONA_RONSPOT = ZoneInfo("Europe/Dublin")
+"""Ronspot es irlandés y su reloj va en Dublín: en la captura conviven `date: 2026-09-22`
+y `zone_current_time: 00:25` con el Pi en Madrid a las 01:25. Usar la fecha local
+desplazaría la ventana un día entero entre las 00:00 y la 01:00."""
 
 
 def build(config: Config) -> RonspotClient:
@@ -27,7 +33,8 @@ def build(config: Config) -> RonspotClient:
 
 
 def print_report(report: Report, dry_run: bool) -> None:
-    if report.stopped and not report.stopped.startswith("sin red"):
+    # Ni un corte de red ni un backoff son noticia: pasan cada minuto y llenarían el log.
+    if report.stopped and not report.stopped.startswith(("sin red", "backoff")):
         print(f"parado: {report.stopped}")
     for booking in report.booked:
         verb = "reservaría" if dry_run else "reservada"
@@ -51,7 +58,7 @@ def main(argv: list[str] | None = None) -> int:
     config = Config.load(args.config)
     state = State.load(config.state_path)
     client = build(config)
-    today, now = dt.date.today(), time.time()
+    today, now = dt.datetime.now(ZONA_RONSPOT).date(), time.time()
 
     if args.status:
         report = run_tick(
@@ -71,7 +78,9 @@ def main(argv: list[str] | None = None) -> int:
         ]
         print("\nsin cubrir:")
         for date in pending:
-            print(f"  {es_fecha(date)}")
+            fallos = state.rejected.get(date.isoformat(), 0)
+            marca = f"  ({fallos} rechazos)" if fallos else ""
+            print(f"  {es_fecha(date)}{marca}")
         return 0
 
     notifier = Silent() if args.dry_run else Slack(config.slack_token, config.slack_channel)

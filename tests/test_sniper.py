@@ -9,13 +9,14 @@ from ronspot_sniper.state import State
 from tests.fake import FakeRonspot, FakeSlack
 
 GUID = "00000000-0000-0000-0000-000000000000"
+ZONE = 1234
 LUNES_ABIERTO = dt.date(2026, 10, 5)
 
 
 def config(**kwargs: Any) -> Config:
     base = {
         "guid": GUID,
-        "zone_id": 1908,
+        "zone_id": ZONE,
         "base_url": "https://my.ronspot.ie",
         "vehicle_type_id": 2,
         "vehicle_fuel_id": 2,
@@ -43,7 +44,7 @@ def tick(
 ) -> tuple[Report, State, FakeSlack]:
     slack = slack or FakeSlack()
     state = state if state is not None else State(last_sweep=now)
-    client = RonspotClient({"ci_session": "x"}, GUID, 1908, transport=fake)
+    client = RonspotClient({"ci_session": "x"}, GUID, ZONE, transport=fake)
     report = run_tick(config(), state, client, slack, today=today, now=now, **kwargs)
     return report, state, slack
 
@@ -105,7 +106,7 @@ def test_a_queued_claim_that_never_confirms_counts_as_rejected():
         pending=["pending_wait.json"],
     )
     state = State(last_sweep=0.0)
-    client = RonspotClient({"ci_session": "x"}, GUID, 1908, transport=fake)
+    client = RonspotClient({"ci_session": "x"}, GUID, ZONE, transport=fake)
 
     report = run_tick(config(), state, client, FakeSlack(), today=LUNES_ABIERTO, now=0.0)
 
@@ -182,3 +183,55 @@ def test_after_the_router_is_back_the_next_tick_works_normally():
 
     assert [b.date.isoformat() for b in report.booked] == ["2026-10-06"]
     assert len(slack.messages) == 1
+
+
+def test_a_server_error_is_a_quiet_skip_not_a_crash():
+    report, state, slack = tick(FakeRonspot(status=503))
+
+    assert report.stopped == "sin red"
+    assert slack.messages == [] and state.backoff_level == 0
+
+
+def test_backoff_escalates_when_the_limit_comes_from_the_vehicle_check():
+    """El `relax()` estaba antes del bucle de reservas: el nivel volvía a 0 en cada tic
+    y se martilleaba a Ronspot cada 5 minutos para siempre."""
+    state = State(last_sweep=0.0)
+    esperas = []
+    for n in range(3):
+        fake = FakeRonspot(weeks={"2026-10-05": "week_open.json"}, vehicles_status=429)
+        antes = state.blocked_until
+        tick(fake, state, now=float(n * 10_000))
+        esperas.append(state.blocked_until - max(antes, float(n * 10_000)))
+
+    assert esperas == [300.0, 600.0, 1200.0]
+
+
+def test_a_sweep_does_not_forget_a_booking_the_calendar_has_not_caught_up_with():
+    """La cola de Ronspot es asíncrona: si el barrido se fía solo del calendario, olvida
+    la reserva recién hecha y la vuelve a pedir, que acaba en rechazo y notificación."""
+    state = State(last_sweep=0.0)
+    primero = FakeRonspot(weeks={"2026-10-05": "week_open.json"}, bookable={"2026-10-06"})
+    tick(primero, state, now=0.0)
+    assert "2026-10-06" in state.covered
+
+    # El calendario sigue sin reflejarla (week_open no la trae) y ahora toca barrido.
+    segundo = FakeRonspot(weeks={"2026-10-05": "week_open.json"}, bookable={"2026-10-06"})
+    report, state, _ = tick(segundo, state, now=60.0, full_sweep=True)
+
+    assert report.booked == []
+    assert "claimSpot" not in " ".join(segundo.paths())
+    assert "2026-10-06" in state.covered
+
+
+def test_the_expiry_alert_is_retried_when_slack_is_down():
+    slack = FakeSlack(working=False)
+    state = State(last_sweep=0.0)
+    _, state, _ = tick(FakeRonspot(weeks={"2026-10-05": "login.html"}), state, slack)
+
+    assert not state.session_alert_sent
+
+    slack.working = True
+    _, state, _ = tick(FakeRonspot(weeks={"2026-10-05": "login.html"}), state, slack)
+
+    assert state.session_alert_sent
+    assert len(slack.messages) == 2

@@ -43,6 +43,8 @@ class FakeRonspot:
         pending: list[str] | None = None,
         release: str = "release_ok.json",
         status: int = 200,
+        vehicles_status: int | None = None,
+        vehicles_body: str | None = None,
         offline: bool = False,
     ) -> None:
         self.headers: dict[str, str] = {}
@@ -54,6 +56,8 @@ class FakeRonspot:
         self._pending = list(pending or ["pending_ok.json"])
         self._release = release
         self._status = status
+        self._vehicles_status = vehicles_status
+        self._vehicles_body = vehicles_body
         self._offline = offline
 
     def post(self, url, data=None, timeout=None, **kwargs):
@@ -65,6 +69,10 @@ class FakeRonspot:
         if self._status != 200:
             return FakeResponse("", self._status)
         if path.endswith("GetAvalablevehicleTypeDayWise"):
+            if self._vehicles_status is not None:
+                return FakeResponse(self._vehicles_body or "", self._vehicles_status)
+            if self._vehicles_body is not None:
+                return FakeResponse(self._vehicles_body)
             if fields.get("booking_date") in self._bookable:
                 return FakeResponse(
                     '<select name="vehicletype"><option value="2">TESTPLATE</option></select>'
@@ -94,9 +102,10 @@ class FakeRonspot:
 
 
 class FakeSlack:
-    def __init__(self) -> None:
+    def __init__(self, *, working: bool = True) -> None:
         self.messages: list[str] = []
+        self.working = working
 
     def send(self, text: str) -> bool:
         self.messages.append(text)
-        return True
+        return self.working

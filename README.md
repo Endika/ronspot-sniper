@@ -57,7 +57,11 @@ La contraseña y el token de recaptcha se censuran antes de tocar el disco.
 
 ```
 * * * * * cd /home/pi/ronspot && flock -n /tmp/ronspot.lock /usr/bin/python3 -m ronspot_sniper --config /home/pi/ronspot/config.toml >> /home/pi/ronspot/sniper.log 2>&1
+0 5 * * * [ -f /home/pi/ronspot/sniper.log ] && [ $(stat -c%s /home/pi/ronspot/sniper.log) -gt 1048576 ] && : > /home/pi/ronspot/sniper.log
 ```
+
+El log está vacío mientras no pasa nada. La segunda línea lo vacía si pasa de 1 MB: una
+caída larga de Ronspot escribe un aviso por minuto y esto corre sobre una SD.
 
 ## Puertas de calidad
 
@@ -68,6 +72,13 @@ Las tres tienen que estar en verde antes de tocar el Pi:
 .venv/bin/ruff format --check .
 .venv/bin/mypy                # strict
 .venv/bin/python -m pytest tests/ -q
+```
+
+Y la suite también sobre el intérprete de producción, que no es el mismo:
+
+```sh
+rsync -a tests/ ronspot_sniper/ pyproject.toml lab:ronspot/
+ssh lab 'cd ~/ronspot && .venv-test/bin/python -m pytest tests/ -q'
 ```
 
 Integración contra un Ronspot en memoria alimentado con respuestas reales del portal,

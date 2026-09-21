@@ -14,6 +14,11 @@ from .state import State
 
 log = logging.getLogger(__name__)
 
+CONFIRM_TRUST_SECONDS = 900.0
+"""Una reserva que acabo de confirmar manda sobre el calendario: la cola de Ronspot es
+asíncrona y el calendario tarda en reflejarla. Sin esto, un barrido la olvida y la vuelve
+a pedir, que acaba en rechazo y notificación al móvil."""
+
 DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 
 
@@ -84,20 +89,24 @@ def run_tick(
     except SessionExpired:
         report.stopped = "sesión caducada"
         if not state.session_alert_sent:
-            notifier.send(
+            # Solo se da por avisado si Slack lo aceptó; si no, se reintenta al tic
+            # siguiente. Es el único aviso que la app de Ronspot no puede darte.
+            state.session_alert_sent = notifier.send(
                 ":lock: Ronspot: la sesión ha caducado y el cazador está ciego. "
                 "Re-siémbrala con `node tools/capture.mjs`."
             )
-            state.session_alert_sent = True
         return report
 
-    state.relax()
     state.session_alert_sent = False
     mine = policy.already_mine(days, config.weekdays, today, config.horizon_days)
     report.mine = mine
     if sweep:
         state.last_sweep = now
-        state.covered = {d.date.isoformat(): d.bay for d in mine}
+        fresh = {d.date.isoformat(): d.bay for d in mine}
+        for key, when in state.confirmed_at.items():
+            if now - when < CONFIRM_TRUST_SECONDS:
+                fresh.setdefault(key, state.covered.get(key, ""))
+        state.covered = fresh
     else:
         state.covered.update({d.date.isoformat(): d.bay for d in mine})
 
@@ -146,9 +155,12 @@ def run_tick(
             report.failed.append((day.date, "encolada, Ronspot no la ha confirmado"))
             continue
         state.rejected.pop(key, None)
-        state.covered[booking.date.isoformat()] = booking.bay
+        state.covered[key] = booking.bay
+        state.confirmed_at[key] = now
         report.booked.append(booking)
 
+    if not report.stopped:
+        state.relax()
     if report.booked and not dry_run:
         notifier.send(_message(report.booked))
     return report

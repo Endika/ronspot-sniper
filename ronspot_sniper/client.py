@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 import requests
+
+log = logging.getLogger(__name__)
 
 CALENDAR = "/member/Claim_release"
 CLAIM = "/member/Claim_release/claimSpot"
@@ -46,7 +49,10 @@ class Transport(Protocol):
 
 
 class Unreachable(RuntimeError):
-    """No hay red. Pasa a diario: el router se reinicia a las 04:00 y tarda ~2 min."""
+    """No se puede hablar con Ronspot ahora mismo: sin red, o el portal devuelve 5xx.
+
+    El router se reinicia a las 04:00 y tarda ~2 min, así que esto pasa a diario y no es
+    un error: el tic se salta en silencio y el siguiente lo intenta otra vez."""
 
 
 class RateLimited(RuntimeError):
@@ -96,10 +102,15 @@ class Booking:
     bay: str
 
 
-def _parse_day(raw: Mapping[str, Any]) -> Day:
+def _parse_day(raw: Mapping[str, Any]) -> Day | None:
+    try:
+        date = dt.date.fromisoformat(str(raw["Full_Date"]))
+    except (KeyError, ValueError):
+        log.warning("día del calendario ilegible, se ignora: %r", raw.get("Full_Date"))
+        return None
     bay = str(raw.get("ParkingBayNumber") or "")
     return Day(
-        date=dt.date.fromisoformat(str(raw["Full_Date"])),
+        date=date,
         free_bays=_int(raw.get("AvailableParkingBay")),
         spot_id=_int(raw.get("SpotID")),
         bay="" if bay == "0" else bay,
@@ -143,18 +154,21 @@ class RonspotClient:
 
     def _fetch(self, path: str, data: Mapping[str, Any]) -> Response:
         try:
-            return self._http.post(f"{self.base_url}{path}", data=data, timeout=20)
+            response = self._http.post(f"{self.base_url}{path}", data=data, timeout=20)
         except requests.RequestException as exc:
             raise Unreachable(f"{path}: {exc}") from exc
+        if response.status_code in (401, 403, 429):
+            raise RateLimited(response.status_code)
+        if response.status_code >= 400:
+            log.warning("Ronspot ha respondido %s en %s", response.status_code, path)
+            raise Unreachable(f"{path}: HTTP {response.status_code}")
+        body = response.text
+        if body.lstrip().startswith("<!") or "login-form" in body:
+            raise SessionExpired(path)
+        return response
 
     def _post(self, path: str, data: Mapping[str, Any]) -> dict[str, Any]:
         response = self._fetch(path, data)
-        if response.status_code in (401, 403, 429):
-            raise RateLimited(response.status_code)
-        response.raise_for_status()
-        body = response.text
-        if body.lstrip().startswith("<") or "login-form" in body:
-            raise SessionExpired(path)
         try:
             payload: dict[str, Any] = response.json()
         except ValueError as exc:
@@ -175,7 +189,9 @@ class RonspotClient:
                 "filterByJson": "",
             },
         )
-        days = tuple(_parse_day(raw) for raw in payload.get("future_dates", []))
+        days = tuple(
+            parsed for raw in payload.get("future_dates", []) if (parsed := _parse_day(raw))
+        )
         return Week(start, days)
 
     def bookable(self, date: dt.date) -> bool:
@@ -192,11 +208,6 @@ class RonspotClient:
                 "call_from": "calendar",
             },
         )
-        if response.status_code in (401, 403, 429):
-            raise RateLimited(response.status_code)
-        response.raise_for_status()
-        if "login-form" in response.text:
-            raise SessionExpired(VEHICLES)
         return "<option" in response.text
 
     def claim(self, date: dt.date) -> tuple[bool, str]:

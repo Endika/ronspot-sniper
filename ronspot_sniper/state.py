@@ -21,6 +21,7 @@ class State:
     session_alert_sent: bool = False
     covered: dict[str, str] = field(default_factory=dict)
     rejected: dict[str, int] = field(default_factory=dict)
+    confirmed_at: dict[str, float] = field(default_factory=dict)
     last_sweep: float = 0.0
 
     @classmethod
@@ -29,8 +30,21 @@ class State:
             raw = json.loads(path.read_text())
         except (OSError, ValueError):
             return cls()
-        known = set(cls.__dataclass_fields__)
-        return cls(**{k: v for k, v in raw.items() if k in known})
+        if not isinstance(raw, dict):
+            return cls()
+        fresh = cls()
+        for key, value in raw.items():
+            current = getattr(fresh, key, None)
+            if key not in cls.__dataclass_fields__ or type(value) is not type(current):
+                continue
+            setattr(fresh, key, value)
+        try:
+            fresh.covered_dates()
+            {dt.date.fromisoformat(d) for d in fresh.rejected}
+            {dt.date.fromisoformat(d) for d in fresh.confirmed_at}
+        except (TypeError, ValueError):
+            return cls()
+        return fresh
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -67,4 +81,7 @@ class State:
         }
         self.rejected = {
             d: n for d, n in self.rejected.items() if dt.date.fromisoformat(d) >= today
+        }
+        self.confirmed_at = {
+            d: t for d, t in self.confirmed_at.items() if dt.date.fromisoformat(d) >= today
         }

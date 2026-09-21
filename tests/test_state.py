@@ -1,5 +1,7 @@
 import datetime as dt
 
+import pytest
+
 from ronspot_sniper.state import MAX_BACKOFF, State
 
 
@@ -83,3 +85,26 @@ def test_covered_dates_come_back_as_dates():
     state = State(covered={"2026-09-24": "21 Nivel 4"})
 
     assert state.covered_dates() == {dt.date(2026, 9, 24)}
+
+
+@pytest.mark.parametrize(
+    "roto",
+    [
+        '{"covered": null}',
+        '{"covered": ["2026-10-06"]}',
+        '{"covered": {"no-es-fecha": "x"}}',
+        '{"blocked_until": "manana"}',
+        '{"rejected": {"2026-13-40": 1}}',
+        '{"confirmed_at": {"ayer": 1.0}}',
+        '["ni siquiera un objeto"]',
+    ],
+)
+def test_a_malformed_state_file_starts_from_scratch_instead_of_crashing(tmp_path, roto):
+    """Un state.json corrupto daba un traceback por minuto hasta borrarlo a mano."""
+    path = tmp_path / "state.json"
+    path.write_text(roto)
+
+    cargado = State.load(path)
+
+    assert cargado == State()
+    cargado.forget_past(dt.date(2026, 9, 22))
