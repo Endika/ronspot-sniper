@@ -172,6 +172,25 @@ Tests run against an in-memory Ronspot fed with real, anonymised portal response
 `tests/fixtures/`. If you deploy to a machine with a different Python, run the suite there
 too.
 
+## What this stores, and where
+
+- **Your Ronspot session cookie**, in `session.json`. It is equivalent to being inside
+  your account: anyone holding it can see and change your bookings. Written `600`, and it
+  must **never** reach git.
+- **Your Slack token or Discord webhook**, in `config.toml`. Same treatment.
+- `config.toml`, `session.json` and `state.json` are in `.gitignore`. Check with
+  `git status` before your first commit.
+
+Your password is **never stored**: `tools/capture.mjs` redacts it, along with the
+reCAPTCHA token, before writing anything to disk.
+
+`tests/fixtures/` are real portal responses, anonymised: GUID zeroed, plate `TESTPLATE`,
+names and emails replaced, zone ids changed. If you add fixtures, run the same scissors
+over them before committing.
+
+Security issues go through the [Security tab](https://github.com/Endika/ronspot-sniper/security),
+not a public issue.
+
 ## Limitations
 
 - The login cannot be automated (reCAPTCHA v3): the cookie is seeded by hand.
