@@ -22,16 +22,14 @@ jobs:
           python-version: "3.11"
 
       - name: Instalar solo lo que instala el paquete
-        # En un venv aparte: auditar el entorno del runner mezcla las vulnerabilidades de
-        # pip y del propio tooling con las del proyecto, y eso es ruido, no señal.
-        run: |
-          python -m venv .audit
-          .audit/bin/pip install --quiet --upgrade pip
-          .audit/bin/pip install --quiet .
+        # --target y no un venv: `python -m venv` siembra pip y setuptools, y sus
+        # vulnerabilidades no son las del proyecto. Aquí caen requests y sus dependencias
+        # y nada más, que es justo lo que queremos vigilar.
+        run: pip install --quiet --target .audit .
 
       - name: pip-audit
         # Sin --strict a propósito: el propio paquete no está en PyPI y se salta. Las
         # vulnerabilidades reales siguen devolviendo código distinto de cero.
         run: |
           pip install --quiet pip-audit
-          pip-audit --desc --path .audit/lib/python3.11/site-packages
+          pip-audit --desc --path .audit
