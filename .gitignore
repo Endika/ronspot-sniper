@@ -4,3 +4,7 @@ node_modules/
 config.toml
 session.json
 state.json
+build/
+dist/
+*.egg-info/
+.audit/

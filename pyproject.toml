@@ -6,8 +6,14 @@ build-backend = "setuptools.build_meta"
 name = "ronspot-sniper"
 version = "0.1.0"
 description = "Caza plazas de parking en Ronspot en cuanto alguien libera hueco"
+readme = "README.md"
+license = "MIT"
+keywords = ["ronspot", "parking", "automation", "cron"]
 requires-python = ">=3.11"
 dependencies = ["requests>=2.31"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", "types-requests"]
 
 [project.scripts]
 ronspot-sniper = "ronspot_sniper.__main__:main"

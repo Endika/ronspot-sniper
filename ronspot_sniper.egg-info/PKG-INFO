@@ -1,8 +1,0 @@
-Metadata-Version: 2.4
-Name: ronspot-sniper
-Version: 0.1.0
-Summary: Caza plazas de parking en Ronspot en cuanto alguien libera hueco
-Requires-Python: >=3.11
-License-File: LICENSE
-Requires-Dist: requests>=2.31
-Dynamic: license-file
