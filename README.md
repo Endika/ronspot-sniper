@@ -1,89 +1,91 @@
 # ronspot-sniper
 
-Vigila el calendario de [Ronspot](https://ronspotflexwork.com/) y te reserva plaza de
-parking los días que elijas, en cuanto alguien libera hueco. Pensado para correr desde
-cron en una Raspberry Pi: un tic por minuto, y silencio absoluto mientras no pasa nada.
+Watches your [Ronspot](https://ronspotflexwork.com/) calendar and books a parking spot on
+the days you want, the moment somebody releases one. Built to run from cron on a Raspberry
+Pi: one tick per minute, and complete silence while nothing happens.
 
-No es un cliente oficial. Habla con el portal de empleado igual que lo hace tu navegador.
+This is not an official client. It talks to the employee portal the same way your browser
+does.
 
-## Por qué no basta con mirar `Spotavailable`
+## Why `Spotavailable` is not enough
 
-Si vas a tocar esto, esto es lo que te ahorra la noche que me costó a mí:
+If you are going to touch this, here is what saves you the night it cost me:
 
-- **Hay una ventana de reserva** (14 días en mi zona; mídela con `--status`). **Fuera de
-  ella Ronspot marca todos los días como libres**, fines de semana incluidos, y no deja
-  reservar ninguno. Fiarse de `Spotavailable` acaba en reservas rechazadas.
-- **La señal que vale es `GetAvalablevehicleTypeDayWise`**: solo devuelve un `<option>`
-  con tu matrícula cuando de verdad se puede reservar. Es `RonspotClient.bookable()`, y es
-  lo único que decide si se dispara una reserva.
-- **Reservar es asíncrono.** `claimSpot` responde `"In Process"`; la reserva solo es firme
-  cuando `getPendingClaimStatus` devuelve `isClaimSuccessful: 1`.
-- **`isClaimPendingRequest: 1` no significa "tengo algo en cola"**, significa "este día no
-  es tuyo". Sale en fechas que no has pedido nunca.
-- **El reloj de Ronspot va en Dublín**, no en tu país. Las fechas se calculan en su zona;
-  la hora de corte, en la tuya (`local_tz`).
+- **There is a booking window** (14 days in my zone; measure yours with `--status`).
+  **Outside it, Ronspot marks every day as available**, weekends included, and lets you
+  book none of them. Trusting `Spotavailable` ends in rejected bookings.
+- **The signal that works is `GetAvalablevehicleTypeDayWise`**: it only returns an
+  `<option>` with your plate when the day is genuinely bookable. That is
+  `RonspotClient.bookable()`, and it is the only thing allowed to trigger a booking.
+- **Booking is asynchronous.** `claimSpot` answers `"In Process"`; the booking is only
+  real once `getPendingClaimStatus` returns `isClaimSuccessful: 1`.
+- **`isClaimPendingRequest: 1` does not mean "I have one queued"**, it means "this day is
+  not yours". It shows up on dates you never asked for.
+- **Ronspot's clock runs in Dublin**, not in your country. Dates are computed in its zone;
+  the cut-off time, in yours (`local_tz`).
 
-## Puesta en marcha
+## Getting started
 
-Necesitas Python 3.11+, Node 20+ y una cuenta de Ronspot.
+You need Python 3.11+, Node 20+ and a Ronspot account.
 
 ```sh
-git clone https://github.com/<tu-usuario>/ronspot-sniper && cd ronspot-sniper
+git clone https://github.com/Endika/ronspot-sniper && cd ronspot-sniper
 python3 -m venv .venv && .venv/bin/pip install -e .
 npm install
 ```
 
-El login lleva reCAPTCHA v3, así que **no se puede automatizar**. Entras tú una vez:
+The login is behind reCAPTCHA v3, so **it cannot be automated**. You sign in once:
 
 ```sh
 node tools/capture.mjs ~/.ronspot
 ```
 
-Se abre un Chromium. Entras con tu cuenta, abres el calendario de tu parking, navegas una
-semana o dos, y cierras la ventana. Al cerrar te deja en `~/.ronspot`:
+A Chromium window opens. Sign in, open your car park calendar, move a week or two forward,
+and close the window. On close you get, in `~/.ronspot`:
 
-- `session.json` — la cookie de sesión
-- `config.toml` — tu GUID, tu parking y tu coche, ya rellenos
+- `session.json` — the session cookie
+- `config.toml` — your GUID, car park and vehicle, already filled in
 
-Tu contraseña y el token de recaptcha se censuran antes de escribir nada en disco.
+Your password and the reCAPTCHA token are redacted before anything touches disk.
 
-Ajusta `weekdays` y `giveup_time`, y comprueba que te ve bien:
+Set `weekdays` and `giveup_time`, then check it sees you correctly:
 
 ```sh
 .venv/bin/python -m ronspot_sniper --config ~/.ronspot/config.toml --status
 ```
 
-## Uso
+## Usage
 
 ```sh
-python -m ronspot_sniper --config ~/.ronspot/config.toml            # un tic
-python -m ronspot_sniper --config ~/.ronspot/config.toml --dry-run  # sin reservar
-python -m ronspot_sniper --config ~/.ronspot/config.toml --status   # qué tengo y qué falta
-python -m ronspot_sniper --config ~/.ronspot/config.toml --report   # manda ese resumen
+python -m ronspot_sniper --config ~/.ronspot/config.toml            # one tick
+python -m ronspot_sniper --config ~/.ronspot/config.toml --dry-run  # look, don't book
+python -m ronspot_sniper --config ~/.ronspot/config.toml --status   # what I have, what's missing
+python -m ronspot_sniper --config ~/.ronspot/config.toml --report   # send that summary
 ```
 
-Sin novedad no imprime nada ni avisa. Es deliberado: corre cada minuto.
+With nothing to report it prints nothing and notifies nobody. That is deliberate: it runs
+every minute.
 
-## Configuración
+## Configuration
 
-Ver [`config.example.toml`](config.example.toml). Lo que más se toca:
+See [`config.example.toml`](config.example.toml). The ones you will actually touch:
 
-| Opción | Qué hace |
+| Option | What it does |
 |---|---|
-| `weekdays` | Qué días quieres. `0` = lunes; `[1, 3]` = martes y jueves |
-| `horizon_days` | Hasta dónde deja reservar tu Ronspot |
-| `giveup_time` | Pasada esa hora el día en curso deja de perseguirse. `""` lo desactiva |
-| `local_tz` | Tu reloj, para esa hora de corte |
-| `resync_minutes` | Cada cuánto repasa el horizonte entero y mantiene viva la cookie |
+| `weekdays` | Which days you want. `0` = Monday; `[1, 3]` = Tuesday and Thursday |
+| `horizon_days` | How far ahead your Ronspot lets you book |
+| `giveup_time` | After this hour the current day is dropped. `""` disables it |
+| `local_tz` | Your clock, for that cut-off |
+| `resync_minutes` | How often it re-reads the whole window and keeps the cookie alive |
 
-## Avisos: Slack, Discord o lo que escribas tú
+## Notifications: Slack, Discord, or one you write
 
-El núcleo solo conoce un puerto, `Notifier.send(texto)`. Los adaptadores viven en
-`ronspot_sniper/notify/` y se eligen desde el config:
+The core only knows one port, `Notifier.send(text)`. Adapters live in
+`ronspot_sniper/notify/` and are picked from config.
 
-**Slack** — necesita un bot con el permiso `chat:write`. Con `chat:write.public` además
-escribe en cualquier canal público sin que haya que invitarlo. El `channel` es el ID, no
-el nombre: lo sacas de la URL del canal, después de `/archives/`.
+**Slack** — needs a bot with `chat:write`. With `chat:write.public` it also posts to any
+public channel without being invited. `channel` is the ID, not the name: take it from the
+channel URL, after `/archives/`.
 
 ```toml
 [notify]
@@ -94,8 +96,8 @@ token = "xoxb-..."
 channel = "C01AB2CD3EF"
 ```
 
-**Discord** — solo la URL de un webhook. Sin bot ni permisos: Editar canal →
-Integraciones → Webhooks → Nuevo webhook.
+**Discord** — just a webhook URL. No bot, no permissions: Edit channel → Integrations →
+Webhooks → New webhook.
 
 ```toml
 [notify]
@@ -105,25 +107,26 @@ kind = "discord"
 webhook = "https://discord.com/api/webhooks/..."
 ```
 
-**Consola** (`kind = "console"`) es el que sale por defecto si no configuras nada: los
-avisos van a stdout y, desde cron, acaban en el log.
+**Console** (`kind = "console"`) is the default when nothing is configured: notifications
+go to stdout and, from cron, end up in the log.
 
-**Para añadir el tuyo** (Telegram, ntfy, correo…):
+**To add your own** (Telegram, ntfy, email…):
 
-1. Crea `ronspot_sniper/notify/telegram.py` con una clase que tenga
-   `from_options(options) -> Telegram | None` y `send(text) -> bool`.
-2. Regístrala en `ADAPTADORES` dentro de `notify/__init__.py`.
-3. Su sección del config es `[notify.telegram]`, y llega tal cual a `from_options`.
+1. Create `ronspot_sniper/notify/telegram.py` with a class exposing
+   `from_options(options) -> Telegram | None` and `send(text) -> bool`.
+2. Register it in `ADAPTADORES` inside `notify/__init__.py`.
+3. Its config section is `[notify.telegram]`, handed to `from_options` untouched.
 
-Si tu adaptador se queda sin los datos que necesita, `from_options` devuelve `None` y los
-avisos caen a consola: un aviso mal configurado no debe impedirte cazar la plaza.
+If your adapter is missing the data it needs, `from_options` returns `None` and
+notifications fall back to the console: a misconfigured notifier must never stop you
+getting the spot.
 
-## Qué te llega
+## What reaches you
 
-1. **Plaza cogida** — en el momento. Varias en el mismo minuto van en un solo mensaje.
-2. **Sesión caducada** — una sola vez. Es el único aviso que la app de Ronspot no te da.
-3. **Parte diario** — lo que tienes y lo que falta, si programas `--report`.
-4. **Parado** — ese mismo parte cuando algo está roto, en vez de la lista.
+1. **Spot taken** — immediately. Several in the same minute go in a single message.
+2. **Session expired** — once, and only once. The one alert the Ronspot app cannot give you.
+3. **Daily report** — what you have and what is missing, if you schedule `--report`.
+4. **Stopped** — that same report when something is broken, instead of the list.
 
 ## Cron
 
@@ -133,31 +136,31 @@ avisos caen a consola: un aviso mal configurado no debe impedirte cazar la plaza
 0 5 * * * [ -f ~/.ronspot/sniper.log ] && [ $(stat -c%s ~/.ronspot/sniper.log) -gt 1048576 ] && : > ~/.ronspot/sniper.log
 ```
 
-El log está vacío mientras no pasa nada; la tercera línea lo corta si una caída larga de
-Ronspot lo hace crecer.
+The log stays empty while nothing happens; the third line truncates it if a long Ronspot
+outage makes it grow.
 
-## Cuánto molesta a Ronspot
+## How much it bothers Ronspot
 
-Un tic solo pide las semanas con un día objetivo que aún no es tuyo. Si no falta ninguno,
-**no hace ni una petición**.
+A tick only requests the weeks holding a target day that is not yours yet. If none are
+missing, **it makes no request at all**.
 
-| Situación | Peticiones por minuto |
+| Situation | Requests per minute |
 |---|---|
-| Todo reservado | 0 |
-| Un día pendiente | 2 |
-| Repaso, cada 30 min | 3 |
+| Everything booked | 0 |
+| One day pending | 2 |
+| Re-sync, every 30 min | 3 |
 
-Ante un 429 o un 403 se aparta solo, con espera exponencial de 5 min a 2 h.
+On a 429 or a 403 it backs off on its own, exponentially from 5 minutes to 2 hours.
 
-## Re-sembrar la cookie
+## Re-seeding the cookie
 
-Cuando la sesión caduque te llega un aviso (uno solo). Entonces:
+When the session expires you get one alert. Then:
 
 ```sh
 node tools/capture.mjs ~/.ronspot
 ```
 
-## Puertas de calidad
+## Quality gates
 
 ```sh
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
@@ -165,18 +168,23 @@ node tools/capture.mjs ~/.ronspot
 .venv/bin/python -m pytest tests/ -q
 ```
 
-Los tests van contra un Ronspot en memoria alimentado con respuestas reales del portal,
-anonimizadas, en `tests/fixtures/`. Si despliegas en una máquina con otro Python, pasa la
-suite también allí.
+Tests run against an in-memory Ronspot fed with real, anonymised portal responses in
+`tests/fixtures/`. If you deploy to a machine with a different Python, run the suite there
+too.
 
-## Limitaciones
+## Limitations
 
-- El login no se puede automatizar (reCAPTCHA v3): la cookie se siembra a mano.
-- Está probado contra una sola instalación de Ronspot. `horizon_days` y los ids de
-  vehículo pueden no coincidir con los tuyos; `--status` y `--dry-run` te lo dicen.
-- Que una reserva se acepte no depende solo de este script: si otro te gana la carrera,
-  Ronspot la rechaza y lo reintenta en el tic siguiente.
+- The login cannot be automated (reCAPTCHA v3): the cookie is seeded by hand.
+- Tested against a single Ronspot installation. `horizon_days` and the vehicle ids may not
+  match yours; `--status` and `--dry-run` will tell you.
+- A booking being accepted is not up to this script alone: if someone beats you to it,
+  Ronspot rejects it and the next tick tries again.
 
-## Licencia
+## Language
 
-MIT. Ver [LICENSE](LICENSE).
+Code comments, `SECURITY.md` and commit messages are in Spanish. The README is in English
+so the project is findable.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
