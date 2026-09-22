@@ -46,13 +46,48 @@ def print_report(report: Report, dry_run: bool) -> None:
         print(f"fallida: {es_fecha(date)} — {why}")
 
 
-def main(argv: list[str] | None = None) -> int:
+def resumen(
+    report: Report,
+    pending: list[dt.date],
+    state: State,
+    corte: dt.time | None,
+    today: dt.date,
+    include_today: bool,
+) -> str:
+    """El parte diario. Cubre el caso que no genera mensaje: no haber pillado nada."""
+    if report.stopped:
+        return f":warning: ronspot-sniper parado: {report.stopped}"
+    mias = [f"{es_fecha(d.date)} — {d.bay or 'sin número'}" for d in report.mine]
+    lineas = [":car: Parte de ronspot-sniper"]
+    lineas.append("*Ya son tuyos:* " + (", ".join(mias) if mias else "ninguno"))
+    if pending:
+        falta = []
+        for date in pending:
+            marca = ""
+            if date == today and not include_today and corte is not None:
+                marca = f" (abandonado, pasadas las {corte:%H:%M})"
+            fallos = state.rejected.get(date.isoformat(), 0)
+            if fallos:
+                marca += f" ({fallos} rechazos)"
+            falta.append(f"{es_fecha(date)}{marca}")
+        lineas.append("*Sin pillar:* " + ", ".join(falta))
+    else:
+        lineas.append("*Sin pillar:* nada, la ventana está cubierta entera")
+    return "\n".join(lineas)
+
+
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ronspot-sniper")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--dry-run", action="store_true", help="dice qué cogería, sin cogerlo")
     parser.add_argument("--status", action="store_true", help="qué tengo y qué me falta")
+    parser.add_argument("--report", action="store_true", help="manda ese resumen a Slack")
     parser.add_argument("-v", "--verbose", action="store_true")
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.WARNING,
@@ -65,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
     corte = config.giveup_time
     include_today = corte is None or dt.datetime.now(ZONA_LOCAL).time() < corte
 
-    if args.status:
+    if args.status or args.report:
         report = run_tick(
             config,
             state,
@@ -77,6 +112,16 @@ def main(argv: list[str] | None = None) -> int:
             full_sweep=True,
             include_today=include_today,
         )
+        pending = [
+            d
+            for d in policy.wanted_dates(today, config.weekdays, config.horizon_days)
+            if d.isoformat() not in state.covered
+        ]
+        if args.report:
+            texto = resumen(report, pending, state, corte, today, include_today)
+            Slack(config.slack_token, config.slack_channel).send(texto)
+            print(texto)
+            return 0
         if report.stopped:
             print(f"parado: {report.stopped}")
             return 1
@@ -84,11 +129,6 @@ def main(argv: list[str] | None = None) -> int:
         print("\nya son mías:")
         for day in report.mine:
             print(f"  {es_fecha(day.date)} — {day.bay or 'sin número'}")
-        pending = [
-            d
-            for d in policy.wanted_dates(today, config.weekdays, config.horizon_days)
-            if d.isoformat() not in state.covered
-        ]
         print("\nsin cubrir:")
         for date in pending:
             fallos = state.rejected.get(date.isoformat(), 0)
