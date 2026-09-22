@@ -81,6 +81,22 @@ Ver [`config.example.toml`](config.example.toml). Lo que más se toca:
 El núcleo solo conoce un puerto, `Notifier.send(texto)`. Los adaptadores viven en
 `ronspot_sniper/notify/` y se eligen desde el config:
 
+**Slack** — necesita un bot con el permiso `chat:write`. Con `chat:write.public` además
+escribe en cualquier canal público sin que haya que invitarlo. El `channel` es el ID, no
+el nombre: lo sacas de la URL del canal, después de `/archives/`.
+
+```toml
+[notify]
+kind = "slack"
+
+[notify.slack]
+token = "xoxb-..."
+channel = "C01AB2CD3EF"
+```
+
+**Discord** — solo la URL de un webhook. Sin bot ni permisos: Editar canal →
+Integraciones → Webhooks → Nuevo webhook.
+
 ```toml
 [notify]
 kind = "discord"
@@ -89,7 +105,10 @@ kind = "discord"
 webhook = "https://discord.com/api/webhooks/..."
 ```
 
-Vienen `console`, `slack` y `discord`. **Para añadir el tuyo** (Telegram, ntfy, correo…):
+**Consola** (`kind = "console"`) es el que sale por defecto si no configuras nada: los
+avisos van a stdout y, desde cron, acaban en el log.
+
+**Para añadir el tuyo** (Telegram, ntfy, correo…):
 
 1. Crea `ronspot_sniper/notify/telegram.py` con una clase que tenga
    `from_options(options) -> Telegram | None` y `send(text) -> bool`.
