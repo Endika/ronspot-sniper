@@ -5,18 +5,17 @@ import datetime as dt
 import logging
 import sys
 import time
+import tomllib
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from . import policy
 from .client import RonspotClient
 from .config import DEFAULT_CONFIG, Config, load_cookies
-from .notify import Silent, Slack
+from .notify import Console, Notifier, UnknownNotifier
+from .notify import build as build_notifier
 from .sniper import Report, es_fecha, run_tick
 from .state import State
-
-ZONA_LOCAL = ZoneInfo("Europe/Madrid")
-"""Tu reloj. La hora de corte es "ya estoy en la oficina", no algo del calendario."""
 
 ZONA_RONSPOT = ZoneInfo("Europe/Dublin")
 """Ronspot es irlandés y su reloj va en Dublín: en la captura conviven `date: 2026-09-22`
@@ -24,7 +23,7 @@ y `zone_current_time: 00:25` con el Pi en Madrid a las 01:25. Usar la fecha loca
 desplazaría la ventana un día entero entre las 00:00 y la 01:00."""
 
 
-def build(config: Config) -> RonspotClient:
+def build_client(config: Config) -> RonspotClient:
     return RonspotClient(
         load_cookies(config.session_path),
         config.guid,
@@ -46,6 +45,19 @@ def print_report(report: Report, dry_run: bool) -> None:
         print(f"fallida: {es_fecha(date)} — {why}")
 
 
+def fallo(*lineas: str) -> int:
+    """Un problema de instalación merece una frase, no un traceback de doce líneas."""
+    print(f"ronspot-sniper: {lineas[0]}", file=sys.stderr)
+    for extra in lineas[1:]:
+        print(f"  {extra}", file=sys.stderr)
+    return 2
+
+
+def avisador(config: Config) -> Notifier:
+    """El adaptador que diga el config; sin destino configurado, la consola."""
+    return build_notifier(config.notify_kind, config.notify_options)
+
+
 def resumen(
     report: Report,
     pending: list[dt.date],
@@ -59,7 +71,7 @@ def resumen(
         return f":warning: ronspot-sniper parado: {report.stopped}"
     mias = [f"{es_fecha(d.date)} — {d.bay or 'sin número'}" for d in report.mine]
     lineas = [":car: Parte de ronspot-sniper"]
-    lineas.append("*Ya son tuyos:* " + (", ".join(mias) if mias else "ninguno"))
+    lineas.append("Ya son tuyos: " + (", ".join(mias) if mias else "ninguno"))
     if pending:
         falta = []
         for date in pending:
@@ -70,9 +82,9 @@ def resumen(
             if fallos:
                 marca += f" ({fallos} rechazos)"
             falta.append(f"{es_fecha(date)}{marca}")
-        lineas.append("*Sin pillar:* " + ", ".join(falta))
+        lineas.append("Sin pillar: " + ", ".join(falta))
     else:
-        lineas.append("*Sin pillar:* nada, la ventana está cubierta entera")
+        lineas.append("Sin pillar: nada, la ventana está cubierta entera")
     return "\n".join(lineas)
 
 
@@ -93,19 +105,46 @@ def main(argv: list[str] | None = None) -> int:
         level=logging.DEBUG if args.verbose else logging.WARNING,
         format="%(asctime)s %(levelname)s %(message)s",
     )
-    config = Config.load(args.config)
+    try:
+        config = Config.load(args.config)
+    except FileNotFoundError:
+        return fallo(
+            f"no encuentro el config en {args.config}",
+            "genéralo con:  node tools/capture.mjs ~/.ronspot",
+            "o copia config.example.toml y rellénalo",
+        )
+    except (tomllib.TOMLDecodeError, KeyError, ValueError) as exc:
+        return fallo(
+            f"el config {args.config} está mal: {exc}", "compáralo con config.example.toml"
+        )
+
+    # Antes de tocar la red: un destino de avisos mal escrito se ve al instante.
+    try:
+        build_notifier(config.notify_kind, config.notify_options)
+    except UnknownNotifier as exc:
+        return fallo(str(exc))
+
     state = State.load(config.state_path)
-    client = build(config)
+    try:
+        client = build_client(config)
+    except FileNotFoundError:
+        return fallo(
+            f"no encuentro la cookie de sesión en {config.session_path}",
+            "genérala con:  node tools/capture.mjs",
+        )
+    except (KeyError, ValueError) as exc:
+        return fallo(f"la cookie de sesión en {config.session_path} no vale: {exc}")
     today, now = dt.datetime.now(ZONA_RONSPOT).date(), time.time()
     corte = config.giveup_time
-    include_today = corte is None or dt.datetime.now(ZONA_LOCAL).time() < corte
+    local_tz = ZoneInfo(config.local_tz)
+    include_today = corte is None or dt.datetime.now(local_tz).time() < corte
 
     if args.status or args.report:
         report = run_tick(
             config,
             state,
             client,
-            Silent(),
+            Console(),
             today=today,
             now=now,
             dry_run=True,
@@ -119,7 +158,7 @@ def main(argv: list[str] | None = None) -> int:
         ]
         if args.report:
             texto = resumen(report, pending, state, corte, today, include_today)
-            Slack(config.slack_token, config.slack_channel).send(texto)
+            avisador(config).send(texto)
             print(texto)
             return 0
         if report.stopped:
@@ -138,7 +177,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {es_fecha(date)}{marca}")
         return 0
 
-    notifier = Silent() if args.dry_run else Slack(config.slack_token, config.slack_channel)
+    notifier = Console() if args.dry_run else avisador(config)
     report = run_tick(
         config,
         state,

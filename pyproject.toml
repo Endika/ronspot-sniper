@@ -1,9 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "ronspot-sniper"
 version = "0.1.0"
 description = "Caza plazas de parking en Ronspot en cuanto alguien libera hueco"
 requires-python = ">=3.11"
 dependencies = ["requests>=2.31"]
+
+[project.scripts]
+ronspot-sniper = "ronspot_sniper.__main__:main"
+
+[tool.setuptools]
+packages = ["ronspot_sniper", "ronspot_sniper.notify"]
 
 [tool.ruff]
 line-length = 100

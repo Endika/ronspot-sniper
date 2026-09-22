@@ -1,0 +1,32 @@
+# Copia esto a config.toml, o deja que `node tools/capture.mjs` te lo genere relleno.
+# El fichero lleva la cookie y el token de Slack: chmod 600 y fuera de git.
+
+[ronspot]
+guid = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"  # tu CollegesGuID
+zone_id = 0                                    # el car_park_id de tu parking
+base_url = "https://my.ronspot.ie"
+vehicle_type_id = 2
+vehicle_fuel_id = 2
+
+[sniper]
+weekdays = [1, 3]      # 0 = lunes. [1, 3] = martes y jueves
+horizon_days = 14      # hasta dónde deja reservar tu Ronspot; mídelo con --status
+giveup_time = "09:30"  # pasada esa hora el día en curso ya no sirve; "" lo desactiva
+local_tz = "Europe/Madrid"   # tu reloj, para la hora de corte
+resync_minutes = 30    # cada cuánto repasa el horizonte entero
+confirm_tries = 8      # cuántas veces pregunta si la reserva ya es firme
+confirm_gap = 1.5
+
+[notify]
+kind = "slack"         # console | slack | discord
+
+[notify.slack]         # bot token con chat:write
+token = ""
+channel = ""           # el ID del canal, p.ej. C01AB2CD3EF
+
+[notify.discord]       # Editar canal > Integraciones > Webhooks
+webhook = ""
+
+[paths]
+session = "~/.ronspot/session.json"
+state = "~/.ronspot/state.json"
