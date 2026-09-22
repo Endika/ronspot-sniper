@@ -66,6 +66,26 @@ python -m ronspot_sniper --config ~/.ronspot/config.toml --report   # send that 
 With nothing to report it prints nothing and notifies nobody. That is deliberate: it runs
 every minute.
 
+## Layout
+
+Ports and adapters, with the decisions kept away from the plumbing:
+
+```
+domain/       models and policy — pure, no network, no files, no clock
+ports/        BookingGateway and Notifier: the two real boundaries
+adapters/     ronspot/ (HTTP), notify/ (console, slack, discord), state/ (JSON)
+application/  the tick use case and the wording of reports
+cli/          argparse and the composition root
+```
+
+The dependency arrow only ever points inwards: `application` knows the ports, never
+`requests`. That is what lets the use-case tests run against an in-memory car park while
+the adapter tests replay real captured responses.
+
+Two things deliberately left out: there is no `Clock` port, because `run_tick` already
+takes `today` and `now` as arguments; and no repository or aggregate layer, because a
+tool with one integration and no invariants gets nothing from it but indirection.
+
 ## Configuration
 
 See [`config.example.toml`](config.example.toml). The ones you will actually touch:
@@ -81,7 +101,7 @@ See [`config.example.toml`](config.example.toml). The ones you will actually tou
 ## Notifications: Slack, Discord, or one you write
 
 The core only knows one port, `Notifier.send(text)`. Adapters live in
-`ronspot_sniper/notify/` and are picked from config.
+`ronspot_sniper/adapters/notify/` and are picked from config.
 
 **Slack** — needs a bot with `chat:write`. With `chat:write.public` it also posts to any
 public channel without being invited. `channel` is the ID, not the name: take it from the
@@ -112,9 +132,9 @@ go to stdout and, from cron, end up in the log.
 
 **To add your own** (Telegram, ntfy, email…):
 
-1. Create `ronspot_sniper/notify/telegram.py` with a class exposing
+1. Create `ronspot_sniper/adapters/notify/telegram.py` with a class exposing
    `from_options(options) -> Telegram | None` and `send(text) -> bool`.
-2. Register it in `ADAPTADORES` inside `notify/__init__.py`.
+2. Register it in `ADAPTERS` inside `adapters/notify/__init__.py`.
 3. Its config section is `[notify.telegram]`, handed to `from_options` untouched.
 
 If your adapter is missing the data it needs, `from_options` returns `None` and
@@ -201,8 +221,7 @@ not a public issue.
 
 ## Language
 
-Code comments, `SECURITY.md` and commit messages are in Spanish. The README is in English
-so the project is findable.
+Code, comments and docs are in English. Commit messages are in Spanish.
 
 ## License
 

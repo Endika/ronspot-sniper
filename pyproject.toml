@@ -16,10 +16,20 @@ dependencies = ["requests>=2.31"]
 dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", "types-requests"]
 
 [project.scripts]
-ronspot-sniper = "ronspot_sniper.__main__:main"
+ronspot-sniper = "ronspot_sniper.cli:main"
 
 [tool.setuptools]
-packages = ["ronspot_sniper", "ronspot_sniper.notify"]
+packages = [
+    "ronspot_sniper",
+    "ronspot_sniper.adapters",
+    "ronspot_sniper.adapters.notify",
+    "ronspot_sniper.adapters.ronspot",
+    "ronspot_sniper.adapters.state",
+    "ronspot_sniper.application",
+    "ronspot_sniper.cli",
+    "ronspot_sniper.domain",
+    "ronspot_sniper.ports",
+]
 
 [tool.ruff]
 line-length = 100

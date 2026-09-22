@@ -1,1 +1,1 @@
-"""Caza plazas de parking en Ronspot en cuanto alguien libera hueco."""
+"""Books a Ronspot parking spot the moment somebody releases one."""

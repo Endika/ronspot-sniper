@@ -1,4 +1,4 @@
-name: Seguridad
+name: Security
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   deps:
-    name: dependencias vulnerables
+    name: vulnerable dependencies
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -21,15 +21,15 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Instalar solo lo que instala el paquete
-        # --target y no un venv: `python -m venv` siembra pip y setuptools, y sus
-        # vulnerabilidades no son las del proyecto. Aquí caen requests y sus dependencias
-        # y nada más, que es justo lo que queremos vigilar.
+      - name: Install only what the package installs
+        # --target instead of a venv: `python -m venv` seeds pip and setuptools, and
+        # their vulnerabilities are not the project's. This leaves requests and its own
+        # dependencies and nothing else, which is exactly what we want to watch.
         run: pip install --quiet --target .audit .
 
       - name: pip-audit
-        # Sin --strict a propósito: el propio paquete no está en PyPI y se salta. Las
-        # vulnerabilidades reales siguen devolviendo código distinto de cero.
+        # No --strict on purpose: the package itself is not on PyPI and gets skipped.
+        # Real vulnerabilities still exit non-zero.
         run: |
           pip install --quiet pip-audit
           pip-audit --desc --path .audit

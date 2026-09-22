@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.11 es el que corre en la Raspberry Pi; los demás para no quedarnos atrás.
+        # 3.11 is what the Raspberry Pi runs; the rest so we do not fall behind.
         python: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v7
@@ -34,10 +34,10 @@ jobs:
       - name: lint
         run: ruff check --output-format=github .
 
-      - name: formato
+      - name: format
         run: ruff format --check .
 
-      - name: tipos
+      - name: types
         run: mypy
 
       - name: tests
@@ -51,23 +51,23 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "20"
-      - name: sintaxis
+      - name: syntax
         run: node --check tools/capture.mjs
 
   all-green:
-    # La única comprobación que hay que exigir en la protección de rama: si se exige un
-    # job de la matriz por su nombre, añadir una versión de Python lo deja sin exigir.
+    # The only check to require in branch protection: requiring a matrix job by name
+    # means adding a Python version silently leaves that one unguarded.
     name: all-green
     if: always()
     needs: [gates, capture-tool]
     runs-on: ubuntu-latest
     steps:
-      - name: Comprobar que ninguna puerta falló
+      - name: Check that no gate failed
         run: |
-          echo "resultados: ${{ join(needs.*.result, ', ') }}"
+          echo "results: ${{ join(needs.*.result, ', ') }}"
           if ${{ contains(needs.*.result, 'failure')
                  || contains(needs.*.result, 'cancelled')
                  || contains(needs.*.result, 'skipped') }}; then
-            echo "::error::alguna puerta no pasó"
+            echo "::error::a gate did not pass"
             exit 1
           fi

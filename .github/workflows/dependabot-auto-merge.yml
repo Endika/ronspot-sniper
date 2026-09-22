@@ -13,9 +13,9 @@ jobs:
     steps:
       - id: meta
         uses: dependabot/fetch-metadata@v3
-      # El PAT, no GITHUB_TOKEN: un merge firmado por GITHUB_TOKEN es un push que no
-      # dispara ningún workflow, así que el bump aterrizaría en main sin que el CI
-      # llegue a correr sobre el resultado.
+      # The PAT, not GITHUB_TOKEN: a merge authored by GITHUB_TOKEN is a push that
+      # triggers no workflow at all, so the bump would land on main without CI ever
+      # running against the result.
       - if: steps.meta.outputs.update-type == 'version-update:semver-minor' || steps.meta.outputs.update-type == 'version-update:semver-patch'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}

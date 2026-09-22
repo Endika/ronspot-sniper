@@ -1,4 +1,4 @@
-"""Avisos por Slack con un bot token (`chat:write`)."""
+"""Slack alerts through a bot token (`chat:write`)."""
 
 from __future__ import annotations
 
@@ -7,15 +7,17 @@ from collections.abc import Mapping
 
 import requests
 
+from ._http import HttpClient
+
 log = logging.getLogger(__name__)
 API = "https://slack.com/api/chat.postMessage"
 
 
 class Slack:
-    def __init__(self, token: str, channel: str, *, session: requests.Session | None = None):
+    def __init__(self, token: str, channel: str, *, session: HttpClient | None = None):
         self._token = token
         self._channel = channel
-        self._http = session or requests.Session()
+        self._http: HttpClient = session or requests.Session()
 
     @classmethod
     def from_options(cls, options: Mapping[str, str]) -> Slack | None:
@@ -32,9 +34,10 @@ class Slack:
             )
             payload = response.json()
         except (requests.RequestException, ValueError) as exc:
-            log.error("Slack no ha aceptado el aviso: %s", exc)
+            log.error("Slack did not accept the alert: %s", exc)
             return False
+        # Slack answers 200 with `ok: false` on failure, so the status code is not enough.
         if not payload.get("ok"):
-            log.error("Slack ha respondido error: %s", payload.get("error"))
+            log.error("Slack answered an error: %s", payload.get("error"))
             return False
         return True

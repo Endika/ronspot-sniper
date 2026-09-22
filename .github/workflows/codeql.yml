@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    # Lunes por la mañana: una vulnerabilidad nueva en una dependencia vieja no avisa sola.
+    # Monday morning: a new vulnerability in old code does not announce itself.
     - cron: "17 6 * * 1"
 
 permissions:

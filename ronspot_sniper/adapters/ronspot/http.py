@@ -1,15 +1,18 @@
-"""Cliente del portal de empleado de Ronspot (my.ronspot.ie)."""
+"""Talks to my.ronspot.ie exactly the way the browser does."""
 
 from __future__ import annotations
 
 import datetime as dt
 import logging
 import time
-from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
 from typing import Any, Protocol
 
 import requests
+
+from ...domain import Booking, Week
+from ...ports import ClaimResult, RateLimited, SessionExpired, Unreachable
+from .parsing import parse_confirmation, parse_day, to_int
 
 log = logging.getLogger(__name__)
 
@@ -18,10 +21,6 @@ CLAIM = "/member/Claim_release/claimSpot"
 PENDING = "/index.php/member/claim_release/getPendingClaimStatus"
 RELEASE = "/member/Claim_release/releaseAssignSpot"
 VEHICLES = "/member/Claim_release/GetAvalablevehicleTypeDayWise"
-
-
-class SessionExpired(RuntimeError):
-    """Ronspot ha devuelto el login en vez de datos: hay que re-sembrar la cookie."""
 
 
 class Response(Protocol):
@@ -33,11 +32,9 @@ class Response(Protocol):
 
     def json(self) -> Any: ...
 
-    def raise_for_status(self) -> None: ...
-
 
 class Transport(Protocol):
-    """Lo único que el cliente necesita de `requests.Session`; los tests inyectan un doble."""
+    """All this adapter needs from `requests.Session`; tests inject a stand-in."""
 
     def post(
         self,
@@ -48,78 +45,23 @@ class Transport(Protocol):
     ) -> Response: ...
 
 
-class Unreachable(RuntimeError):
-    """No se puede hablar con Ronspot ahora mismo: sin red, o el portal devuelve 5xx.
-
-    El router se reinicia a las 04:00 y tarda ~2 min, así que esto pasa a diario y no es
-    un error: el tic se salta en silencio y el siguiente lo intenta otra vez."""
-
-
-class RateLimited(RuntimeError):
-    def __init__(self, status: int) -> None:
-        super().__init__(f"Ronspot respondió {status}")
-        self.status = status
-
-
-def _int(value: Any) -> int:
-    try:
-        return int(str(value).strip() or 0)
-    except ValueError:
-        return 0
-
-
-@dataclass(frozen=True)
-class Day:
-    date: dt.date
-    free_bays: int
-    spot_id: int
-    bay: str
-    blocked: bool
-    calendar_says_free: bool
-    """Lo que anuncia `Spotavailable`. Medido: no se corresponde con la realidad — sale 1
-    en días llenos y 0 en días reservables. Solo vale para informar; quien decide es
-    `RonspotClient.bookable()`."""
-
-    @property
-    def mine(self) -> bool:
-        return self.spot_id != 0
-
-    @property
-    def worth_trying(self) -> bool:
-        return not self.mine and not self.blocked
-
-
-@dataclass(frozen=True)
-class Week:
-    start: dt.date
-    days: tuple[Day, ...]
-
-
-@dataclass(frozen=True)
-class Booking:
-    date: dt.date
-    spot_id: int
-    bay: str
-
-
-def _parse_day(raw: Mapping[str, Any]) -> Day | None:
-    try:
-        date = dt.date.fromisoformat(str(raw["Full_Date"]))
-    except (KeyError, ValueError):
-        log.warning("día del calendario ilegible, se ignora: %r", raw.get("Full_Date"))
-        return None
-    bay = str(raw.get("ParkingBayNumber") or "")
-    return Day(
-        date=date,
-        free_bays=_int(raw.get("AvailableParkingBay")),
-        spot_id=_int(raw.get("SpotID")),
-        bay="" if bay == "0" else bay,
-        blocked=_int(raw.get("varIsBlocked")) == 1 or _int(raw.get("varIsSemiBlocked")) == 1,
-        calendar_says_free=_int(raw.get("Spotavailable")) == 1,
+def _session(base_url: str, cookies: Mapping[str, str]) -> requests.Session:
+    session = requests.Session()
+    session.headers.update(
+        {
+            "X-Requested-With": "XMLHttpRequest",
+            "User-Agent": "Mozilla/5.0 (X11; Linux armv7l) ronspot-sniper",
+            "Referer": f"{base_url}{CALENDAR}",
+        }
     )
+    for name, value in cookies.items():
+        session.cookies.set(name, value, domain="my.ronspot.ie")
+    return session
 
 
-class RonspotClient:
+class RonspotGateway:
+    """Implements `ports.BookingGateway`."""
+
     def __init__(
         self,
         cookies: Mapping[str, str],
@@ -130,26 +72,15 @@ class RonspotClient:
         vehicle_type_id: int = 2,
         vehicle_fuel_id: int = 2,
         transport: Transport | None = None,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.guid = guid
         self.zone_id = zone_id
         self.base_url = base_url.rstrip("/")
         self.vehicle_type_id = vehicle_type_id
         self.vehicle_fuel_id = vehicle_fuel_id
-        if transport is None:
-            session: requests.Session = requests.Session()
-            session.headers.update(
-                {
-                    "X-Requested-With": "XMLHttpRequest",
-                    "User-Agent": "Mozilla/5.0 (X11; Linux armv7l) ronspot-sniper",
-                    "Referer": f"{self.base_url}{CALENDAR}",
-                }
-            )
-            for name, value in cookies.items():
-                session.cookies.set(name, value, domain="my.ronspot.ie")
-            self._http: Transport = session
-        else:
-            self._http = transport
+        self._http: Transport = transport or _session(self.base_url, cookies)
+        self._sleep = sleep
         self._token = ""
 
     def _fetch(self, path: str, data: Mapping[str, Any]) -> Response:
@@ -160,7 +91,7 @@ class RonspotClient:
         if response.status_code in (401, 403, 429):
             raise RateLimited(response.status_code)
         if response.status_code >= 400:
-            log.warning("Ronspot ha respondido %s en %s", response.status_code, path)
+            log.warning("Ronspot answered %s on %s", response.status_code, path)
             raise Unreachable(f"{path}: HTTP {response.status_code}")
         body = response.text
         if body.lstrip().startswith("<!") or "login-form" in body:
@@ -172,7 +103,8 @@ class RonspotClient:
         try:
             payload: dict[str, Any] = response.json()
         except ValueError as exc:
-            raise SessionExpired(f"{path}: respuesta no es JSON") from exc
+            raise SessionExpired(f"{path}: answer is not JSON") from exc
+        # Ronspot rotates its CSRF token on every mutation; the next call needs the fresh one.
         token = payload.get("ronspot_token")
         if token:
             self._token = str(token)
@@ -190,13 +122,13 @@ class RonspotClient:
             },
         )
         days = tuple(
-            parsed for raw in payload.get("future_dates", []) if (parsed := _parse_day(raw))
+            parsed for raw in payload.get("future_dates", []) if (parsed := parse_day(raw))
         )
         return Week(start, days)
 
     def bookable(self, date: dt.date) -> bool:
-        """La señal honesta: Ronspot solo ofrece el desplegable del coche si de verdad
-        queda plaza para ti. `Spotavailable` del calendario se queda en 1 aunque no haya."""
+        """Ronspot only offers the vehicle dropdown when a spot really is yours to take.
+        The calendar's `Spotavailable` stays at 1 even when there is none."""
         response = self._fetch(
             VEHICLES,
             {
@@ -210,8 +142,7 @@ class RonspotClient:
         )
         return "<option" in response.text
 
-    def claim(self, date: dt.date) -> tuple[bool, str]:
-        """Pide la plaza. Devuelve (aceptada, mensaje); la reserva aún no es firme."""
+    def claim(self, date: dt.date) -> ClaimResult:
         if not self._token:
             self.week(date - dt.timedelta(days=date.weekday()))
         payload = self._post(
@@ -228,18 +159,13 @@ class RonspotClient:
                 "ronspot_token": self._token,
             },
         )
-        ok = _int(payload.get("ResponseCode")) == 200
-        return ok, str(payload.get("ErrorMessage") or payload.get("Message") or "")
+        return ClaimResult(
+            accepted=to_int(payload.get("ResponseCode")) == 200,
+            message=str(payload.get("ErrorMessage") or payload.get("Message") or ""),
+        )
 
-    def confirm(
-        self,
-        date: dt.date,
-        *,
-        tries: int = 8,
-        gap: float = 1.5,
-        sleep: Callable[[float], None] = time.sleep,
-    ) -> Booking | None:
-        """Sondea la cola de Ronspot hasta que la reserva pasa de 'In Process' a firme."""
+    def confirm(self, date: dt.date, *, tries: int = 8, gap: float = 1.5) -> Booking | None:
+        """Ronspot queues the claim and answers 'In Process'; only this says it is real."""
         for attempt in range(tries):
             payload = self._post(
                 PENDING,
@@ -251,15 +177,11 @@ class RonspotClient:
                     "Type": "1",
                 },
             )
-            schedule: Iterable[Mapping[str, Any]] = payload.get("Records", {}).get("Schedule", [])
-            for row in schedule:
-                if str(row.get("Full_Date")) != date.isoformat():
-                    continue
-                if str(row.get("isClaimSuccessful")) == "1":
-                    bay = str(row.get("ParkingBayNumber") or "")
-                    return Booking(date, _int(row.get("SpotID")), bay)
+            booking = parse_confirmation(payload, date)
+            if booking is not None:
+                return booking
             if attempt < tries - 1:
-                sleep(gap)
+                self._sleep(gap)
         return None
 
     def release(self, booking: Booking) -> bool:
@@ -275,4 +197,4 @@ class RonspotClient:
                 "ronspot_token": self._token,
             },
         )
-        return _int(payload.get("ResponseCode")) == 200
+        return to_int(payload.get("ResponseCode")) == 200

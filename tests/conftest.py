@@ -1,8 +1,8 @@
-"""Ningún test sale a internet.
+"""No test reaches the internet.
 
-Un test que llama a my.ronspot.ie de verdad es lento, frágil, y sobre este portal en
-concreto puede acabar en una reserva rechazada y una notificación al móvil de alguien.
-Ya pasó una vez, así que aquí se corta de raíz.
+A test that really calls my.ronspot.ie is slow, flaky, and on this portal in particular
+can end in a rejected booking and a notification on somebody's phone. It happened once,
+so it is cut off at the root here.
 """
 
 import socket
@@ -12,9 +12,9 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def sin_red(monkeypatch: pytest.MonkeyPatch) -> None:
-    def prohibido(*args: Any, **kwargs: Any) -> None:
-        raise RuntimeError("un test ha intentado salir a la red; usa tests/fake.py")
+def no_network(monkeypatch: pytest.MonkeyPatch) -> None:
+    def blocked(*args: Any, **kwargs: Any) -> None:
+        raise RuntimeError("a test tried to reach the network; use tests/fakes.py")
 
-    monkeypatch.setattr(socket.socket, "connect", prohibido)
-    monkeypatch.setattr(socket, "create_connection", prohibido)
+    monkeypatch.setattr(socket.socket, "connect", blocked)
+    monkeypatch.setattr(socket, "create_connection", blocked)

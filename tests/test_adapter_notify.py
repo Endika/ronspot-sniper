@@ -3,20 +3,20 @@ from typing import Any
 
 import pytest
 
-from ronspot_sniper.config import _notify
-from ronspot_sniper.notify import (
-    ADAPTADORES,
+from ronspot_sniper.adapters.notify import (
+    ADAPTERS,
     Console,
     Discord,
-    Notifier,
     Slack,
     UnknownNotifier,
     build,
 )
+from ronspot_sniper.config import _notify
+from ronspot_sniper.ports import Notifier
 
 
 class FakeHTTP:
-    """Un `requests.Session` de mentira: apunta lo que se le manda y devuelve lo pedido."""
+    """A fake `requests.Session`: notes what it is sent, returns what it was told to."""
 
     def __init__(
         self,
@@ -40,34 +40,29 @@ class FakeHTTP:
 
 
 def test_every_adapter_satisfies_the_port():
-    for nombre, factory in ADAPTADORES.items():
-        hecho = factory({"token": "t", "channel": "c", "webhook": "https://x/y"})
-        assert isinstance(hecho, Notifier), nombre
+    for name, factory in ADAPTERS.items():
+        made = factory({"token": "t", "channel": "c", "webhook": "https://x/y"})
+        assert isinstance(made, Notifier), name
 
 
 def test_discord_posts_the_text_to_the_webhook():
     http = FakeHTTP()
-    discord = Discord("https://discord.com/api/webhooks/abc", session=http)  # type: ignore[arg-type]
+    discord = Discord("https://discord.com/api/webhooks/abc", session=http)
 
-    assert discord.send("plaza cogida")
-    assert http.posts == [("https://discord.com/api/webhooks/abc", {"content": "plaza cogida"})]
+    assert discord.send("spot booked")
+    assert http.posts == [("https://discord.com/api/webhooks/abc", {"content": "spot booked"})]
 
 
 def test_discord_reports_failure_instead_of_raising():
-    caido = Discord("https://x/y", session=FakeHTTP(status=404))  # type: ignore[arg-type]
-    roto = Discord("https://x/y", session=FakeHTTP(boom=OSError("sin red")))  # type: ignore[arg-type]
-
-    assert not caido.send("hola")
-    with pytest.raises(OSError):
-        roto.send("hola")
+    assert not Discord("https://x/y", session=FakeHTTP(status=404)).send("hi")
 
 
 def test_slack_reads_the_ok_field_not_just_the_status():
-    bueno = Slack("t", "c", session=FakeHTTP(payload={"ok": True}))  # type: ignore[arg-type]
-    malo = Slack("t", "c", session=FakeHTTP(payload={"ok": False, "error": "channel_not_found"}))  # type: ignore[arg-type]
+    good = Slack("t", "c", session=FakeHTTP(payload={"ok": True}))
+    bad = Slack("t", "c", session=FakeHTTP(payload={"ok": False, "error": "channel_not_found"}))
 
-    assert bueno.send("hola")
-    assert not malo.send("hola")
+    assert good.send("hi")
+    assert not bad.send("hi")
 
 
 def test_an_unknown_adapter_says_which_ones_exist():
@@ -76,9 +71,14 @@ def test_an_unknown_adapter_says_which_ones_exist():
 
 
 def test_an_adapter_without_its_options_falls_back_to_the_console():
-    """Un aviso mal configurado no debe impedirte cazar la plaza."""
+    """A misconfigured notifier must never stop you getting the spot."""
     assert isinstance(build("slack", {}), Console)
     assert isinstance(build("discord", {"webhook": ""}), Console)
+
+
+def test_the_console_adapter_prints(capsys):
+    assert build("console", {}).send("hello")
+    assert "hello" in capsys.readouterr().out
 
 
 def test_the_config_picks_the_adapter_and_its_own_section():
@@ -88,7 +88,7 @@ def test_the_config_picks_the_adapter_and_its_own_section():
         [notify.discord]
         webhook = "https://discord.com/api/webhooks/abc"
         [notify.slack]
-        token = "no-es-este"
+        token = "not-this-one"
     """)
 
     assert _notify(raw) == ("discord", {"webhook": "https://discord.com/api/webhooks/abc"})

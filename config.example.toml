@@ -1,30 +1,30 @@
-# Copia esto a config.toml, o deja que `node tools/capture.mjs` te lo genere relleno.
-# El fichero lleva la cookie y el token de Slack: chmod 600 y fuera de git.
+# Copy this to config.toml, or let `node tools/capture.mjs` generate it filled in.
+# The file holds your cookie path and notifier token: chmod 600, and keep it out of git.
 
 [ronspot]
-guid = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"  # tu CollegesGuID
-zone_id = 0                                    # el car_park_id de tu parking
+guid = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"  # your CollegesGuID
+zone_id = 0                                    # your car park's car_park_id
 base_url = "https://my.ronspot.ie"
 vehicle_type_id = 2
 vehicle_fuel_id = 2
 
 [sniper]
-weekdays = [1, 3]      # 0 = lunes. [1, 3] = martes y jueves
-horizon_days = 14      # hasta dónde deja reservar tu Ronspot; mídelo con --status
-giveup_time = "09:30"  # pasada esa hora el día en curso ya no sirve; "" lo desactiva
-local_tz = "Europe/Madrid"   # tu reloj, para la hora de corte
-resync_minutes = 30    # cada cuánto repasa el horizonte entero
-confirm_tries = 8      # cuántas veces pregunta si la reserva ya es firme
+weekdays = [1, 3]      # 0 = Monday. [1, 3] = Tuesday and Thursday
+horizon_days = 14      # how far ahead your Ronspot books; measure it with --status
+giveup_time = "09:30"  # past this the current day is dropped; "" disables it
+local_tz = "Europe/Madrid"   # your clock, for that cut-off
+resync_minutes = 30    # how often it re-reads the whole window
+confirm_tries = 8      # how many times it asks whether the booking is firm
 confirm_gap = 1.5
 
 [notify]
 kind = "slack"         # console | slack | discord
 
-[notify.slack]         # bot token con chat:write
+[notify.slack]         # bot token with chat:write
 token = ""
-channel = ""           # el ID del canal, p.ej. C01AB2CD3EF
+channel = ""           # the channel ID, e.g. C01AB2CD3EF
 
-[notify.discord]       # Editar canal > Integraciones > Webhooks
+[notify.discord]       # Edit channel > Integrations > Webhooks
 webhook = ""
 
 [paths]

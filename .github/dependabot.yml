@@ -8,7 +8,7 @@ updates:
       day: monday
     open-pull-requests-limit: 5
     groups:
-      # Las de desarrollo juntas: son ruido si vienen de una en una.
+      # Dev tooling grouped: one PR per types-* stub is noise.
       dev:
         patterns: ["pytest*", "ruff", "mypy", "types-*"]
 

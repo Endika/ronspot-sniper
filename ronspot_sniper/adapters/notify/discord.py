@@ -1,7 +1,7 @@
-"""Avisos por Discord con un webhook de canal.
+"""Discord alerts through a channel webhook.
 
-Se saca en Discord con: Editar canal > Integraciones > Webhooks > Nuevo webhook.
-No hace falta bot ni permisos: la URL del webhook es todo.
+Get one in Discord with: Edit channel > Integrations > Webhooks > New webhook.
+No bot and no permissions needed: the webhook URL is everything.
 """
 
 from __future__ import annotations
@@ -11,13 +11,15 @@ from collections.abc import Mapping
 
 import requests
 
+from ._http import HttpClient
+
 log = logging.getLogger(__name__)
 
 
 class Discord:
-    def __init__(self, webhook: str, *, session: requests.Session | None = None):
+    def __init__(self, webhook: str, *, session: HttpClient | None = None):
         self._webhook = webhook
-        self._http = session or requests.Session()
+        self._http: HttpClient = session or requests.Session()
 
     @classmethod
     def from_options(cls, options: Mapping[str, str]) -> Discord | None:
@@ -28,9 +30,9 @@ class Discord:
         try:
             response = self._http.post(self._webhook, json={"content": text}, timeout=15)
         except requests.RequestException as exc:
-            log.error("Discord no ha aceptado el aviso: %s", exc)
+            log.error("Discord did not accept the alert: %s", exc)
             return False
         if response.status_code >= 400:
-            log.error("Discord ha respondido %s", response.status_code)
+            log.error("Discord answered %s", response.status_code)
             return False
         return True

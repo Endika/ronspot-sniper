@@ -1,18 +1,18 @@
-"""Qué días quiero y qué semanas hace falta pedir para saberlo. Sin red."""
+"""Which days to chase, and which weeks must be read to find out. Pure functions."""
 
 from __future__ import annotations
 
 import datetime as dt
-from collections.abc import Collection, Iterable, Sequence
+from collections.abc import Collection, Iterable
 
-from .client import Day
+from .models import Day
 
 WEEK = dt.timedelta(days=7)
 
 HORIZON_DAYS = 14
-"""Medido el 2026-09-22: el último día reservable era hoy+13, y a partir de hoy+14 Ronspot
-marca *todos* los días como `Spotavailable: 1` sin dejar reservar ninguno. Mirar más lejos
-solo gasta peticiones."""
+"""Measured on 2026-09-22: the last bookable day was today+13, and from today+14 onwards
+Ronspot marks *every* day as `Spotavailable: 1` while letting you book none of them.
+Looking further only spends requests."""
 
 
 def monday_of(date: dt.date) -> dt.date:
@@ -20,12 +20,12 @@ def monday_of(date: dt.date) -> dt.date:
 
 
 def window_end(today: dt.date, horizon_days: int = HORIZON_DAYS) -> dt.date:
-    """Primer día ya fuera de plazo."""
+    """First day already out of the booking window."""
     return today + dt.timedelta(days=horizon_days)
 
 
 def week_starts(today: dt.date, horizon_days: int = HORIZON_DAYS) -> list[dt.date]:
-    """Los lunes que hacen falta para cubrir la ventana: dos o tres peticiones."""
+    """The Mondays needed to cover the window: two or three requests."""
     first, last = monday_of(today), monday_of(window_end(today, horizon_days))
     return [first + WEEK * n for n in range((last - first).days // 7 + 1)]
 
@@ -35,7 +35,7 @@ def wanted_dates(
     weekdays: Collection[int],
     horizon_days: int = HORIZON_DAYS,
 ) -> list[dt.date]:
-    """Los martes y jueves en plazo, hoy incluido: un hueco se puede liberar esta mañana."""
+    """Target weekdays inside the window, today included: a spot can free up this morning."""
     end = window_end(today, horizon_days)
     day, out = today, []
     while day < end:
@@ -52,10 +52,10 @@ def weeks_to_poll(
     horizon_days: int = HORIZON_DAYS,
     include_today: bool = True,
 ) -> list[dt.date]:
-    """Solo las semanas con algún día objetivo que aún no tengo.
+    """Only the weeks holding a target day I do not have yet.
 
-    Si hoy ya está abandonado por la hora de corte, su semana tampoco se pide: no tiene
-    sentido gastar una petición por minuto en un día que ya no sirve.
+    When today has already been given up on, its week is not requested either: no point
+    spending a request a minute on a day that is no longer useful.
     """
     first = today if include_today else today + dt.timedelta(days=1)
     pending = [
@@ -71,13 +71,10 @@ def candidates(
     horizon_days: int = HORIZON_DAYS,
     include_today: bool = True,
 ) -> list[Day]:
-    """Días objetivo en plazo que aún no son míos, el más cercano primero.
+    """In-window target days that are not mine yet, nearest first.
 
-    `include_today=False` descarta el día en curso: pasada la hora de corte ya estás en la
-    oficina con el coche aparcado en la calle y la plaza no te sirve.
-
-    No se filtra por `Spotavailable`: fuera de plazo vale 1 en todos los días y dentro no
-    es de fiar. Quien dice si hay plaza es `RonspotClient.bookable()`.
+    Not filtered by `calendar_says_free`: out of window it reads 1 on every day, and in
+    window it is not trustworthy either. Whether a spot exists is the gateway's answer.
     """
     end = window_end(today, horizon_days)
     first = today if include_today else today + dt.timedelta(days=1)
@@ -95,7 +92,7 @@ def already_mine(
     today: dt.date,
     horizon_days: int = HORIZON_DAYS,
 ) -> list[Day]:
-    """Lo que ya tengo dentro de la ventana. Fuera de ella no hay nada que cubrir."""
+    """What I already hold inside the window. Outside it there is nothing to cover."""
     end = window_end(today, horizon_days)
     return sorted(
         (
@@ -105,10 +102,3 @@ def already_mine(
         ),
         key=lambda d: d.date,
     )
-
-
-def flatten(weeks: Sequence[object]) -> list[Day]:
-    out: list[Day] = []
-    for week in weeks:
-        out.extend(getattr(week, "days", ()))
-    return out

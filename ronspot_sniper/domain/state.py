@@ -1,14 +1,10 @@
-"""Estado entre tics de cron: backoff, avisos ya enviados y días ya cazados."""
+"""What the sniper remembers between ticks, and the rules over it. No I/O."""
 
 from __future__ import annotations
 
 import datetime as dt
-import json
-import os
-import tempfile
 import time
-from dataclasses import asdict, dataclass, field
-from pathlib import Path
+from dataclasses import dataclass, field
 
 BASE_BACKOFF = 300.0
 MAX_BACKOFF = 7200.0
@@ -24,44 +20,11 @@ class State:
     confirmed_at: dict[str, float] = field(default_factory=dict)
     last_sweep: float = 0.0
 
-    @classmethod
-    def load(cls, path: Path) -> State:
-        try:
-            raw = json.loads(path.read_text())
-        except (OSError, ValueError):
-            return cls()
-        if not isinstance(raw, dict):
-            return cls()
-        fresh = cls()
-        for key, value in raw.items():
-            current = getattr(fresh, key, None)
-            if key not in cls.__dataclass_fields__ or type(value) is not type(current):
-                continue
-            setattr(fresh, key, value)
-        try:
-            fresh.covered_dates()
-            {dt.date.fromisoformat(d) for d in fresh.rejected}
-            {dt.date.fromisoformat(d) for d in fresh.confirmed_at}
-        except (TypeError, ValueError):
-            return cls()
-        return fresh
-
-    def save(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".state-")
-        try:
-            with os.fdopen(fd, "w") as handle:
-                json.dump(asdict(self), handle, indent=1)
-            Path(tmp).replace(path)
-            path.chmod(0o600)
-        except BaseException:
-            Path(tmp).unlink(missing_ok=True)
-            raise
-
     def blocked(self, now: float | None = None) -> bool:
         return (now if now is not None else time.time()) < self.blocked_until
 
     def penalise(self, now: float | None = None) -> float:
+        """Back off further each time, up to two hours."""
         now = now if now is not None else time.time()
         delay: float = min(BASE_BACKOFF * (2**self.backoff_level), MAX_BACKOFF)
         self.backoff_level += 1
@@ -76,6 +39,7 @@ class State:
         return {dt.date.fromisoformat(d) for d in self.covered}
 
     def forget_past(self, today: dt.date) -> None:
+        """Drop yesterday, so the file never grows without bound."""
         self.covered = {
             d: bay for d, bay in self.covered.items() if dt.date.fromisoformat(d) >= today
         }
