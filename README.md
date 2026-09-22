@@ -27,6 +27,11 @@ con su `SpotID` y su `ParkingBayNumber`.
 **`isClaimPendingRequest: 1` no significa "tengo algo en cola"**, significa "este día no es
 tuyo". Sale en fechas que no has pedido nunca.
 
+**Hora de corte.** Pasada `giveup_time` (09:30, hora de Madrid) el día en curso deja de
+perseguirse: a esa hora ya estás en la oficina con el coche aparcado en la calle y la
+plaza no te sirve. Las fechas se calculan en la zona de Ronspot (Dublín) pero el corte va
+en la tuya. Se desactiva poniendo `giveup_time = ""`.
+
 **Un rechazo no descarta el día.** Suele significar que otro ha ganado la carrera por
 segundos, así que el script vuelve a intentarlo en el tic siguiente, siempre.
 
@@ -62,6 +67,20 @@ La contraseña y el token de recaptcha se censuran antes de tocar el disco.
 
 El log está vacío mientras no pasa nada. La segunda línea lo vacía si pasa de 1 MB: una
 caída larga de Ronspot escribe un aviso por minuto y esto corre sobre una SD.
+
+## Cuánto molesta a Ronspot
+
+Un tic solo pide las semanas que contienen un martes o jueves que aún no es tuyo. Si no
+falta ninguno, **el tic no hace ni una petición**. El coste real:
+
+| Situación | Peticiones por minuto |
+|---|---|
+| Todo reservado | 0 |
+| Un día pendiente | 1 semana + 1 comprobación de coche |
+| Barrido (cada 30 min) | 3 semanas |
+
+El barrido no es solo para detectar una cancelación ajena: es lo que mantiene viva la
+cookie de sesión cuando no hay nada que cazar.
 
 ## Puertas de calidad
 

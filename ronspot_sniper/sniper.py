@@ -54,6 +54,7 @@ def run_tick(
     now: float,
     dry_run: bool = False,
     full_sweep: bool = False,
+    include_today: bool = True,
 ) -> Report:
     report = Report()
     if state.blocked(now):
@@ -66,7 +67,7 @@ def run_tick(
         policy.week_starts(today, config.horizon_days)
         if sweep
         else policy.weeks_to_poll(
-            today, config.weekdays, state.covered_dates(), config.horizon_days
+            today, config.weekdays, state.covered_dates(), config.horizon_days, include_today
         )
     )
     if not starts:
@@ -110,7 +111,7 @@ def run_tick(
     else:
         state.covered.update({d.date.isoformat(): d.bay for d in mine})
 
-    for day in policy.candidates(days, config.weekdays, today, config.horizon_days):
+    for day in policy.candidates(days, config.weekdays, today, config.horizon_days, include_today):
         key = day.date.isoformat()
         if key in state.covered:
             continue

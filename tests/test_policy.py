@@ -85,3 +85,20 @@ def test_weeks_to_poll_is_empty_when_everything_in_the_window_is_mine():
     todos = set(policy.wanted_dates(HOY, MAR_JUE))
 
     assert policy.weeks_to_poll(HOY, MAR_JUE, todos) == []
+
+
+def test_today_is_dropped_once_the_cutoff_has_passed():
+    """Pasadas las 09:30 ya estás en la oficina con el coche en la calle: hoy no sirve."""
+    dias = [day("2026-09-22"), day("2026-09-24")]
+
+    assert [d.date.day for d in policy.candidates(dias, MAR_JUE, HOY)] == [22, 24]
+    hits = policy.candidates(dias, MAR_JUE, HOY, include_today=False)
+    assert [d.date.day for d in hits] == [24]
+
+
+def test_an_abandoned_today_does_not_cost_a_request_either():
+    """Si hoy es el único día pendiente y ya pasó la hora de corte, no se pide nada."""
+    cubiertos = {dt.date(2026, 9, 24), dt.date(2026, 9, 29), dt.date(2026, 10, 1)}
+
+    assert policy.weeks_to_poll(HOY, MAR_JUE, cubiertos) == [dt.date(2026, 9, 21)]
+    assert policy.weeks_to_poll(HOY, MAR_JUE, cubiertos, include_today=False) == []

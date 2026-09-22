@@ -50,9 +50,17 @@ def weeks_to_poll(
     weekdays: Collection[int],
     covered: Collection[dt.date],
     horizon_days: int = HORIZON_DAYS,
+    include_today: bool = True,
 ) -> list[dt.date]:
-    """Solo las semanas con algún día objetivo que aún no tengo."""
-    pending = [d for d in wanted_dates(today, weekdays, horizon_days) if d not in covered]
+    """Solo las semanas con algún día objetivo que aún no tengo.
+
+    Si hoy ya está abandonado por la hora de corte, su semana tampoco se pide: no tiene
+    sentido gastar una petición por minuto en un día que ya no sirve.
+    """
+    first = today if include_today else today + dt.timedelta(days=1)
+    pending = [
+        d for d in wanted_dates(today, weekdays, horizon_days) if d not in covered and d >= first
+    ]
     return sorted({monday_of(d) for d in pending})
 
 
@@ -61,17 +69,22 @@ def candidates(
     weekdays: Collection[int],
     today: dt.date,
     horizon_days: int = HORIZON_DAYS,
+    include_today: bool = True,
 ) -> list[Day]:
     """Días objetivo en plazo que aún no son míos, el más cercano primero.
+
+    `include_today=False` descarta el día en curso: pasada la hora de corte ya estás en la
+    oficina con el coche aparcado en la calle y la plaza no te sirve.
 
     No se filtra por `Spotavailable`: fuera de plazo vale 1 en todos los días y dentro no
     es de fiar. Quien dice si hay plaza es `RonspotClient.bookable()`.
     """
     end = window_end(today, horizon_days)
+    first = today if include_today else today + dt.timedelta(days=1)
     hits = [
         day
         for day in days
-        if day.date.weekday() in weekdays and today <= day.date < end and day.worth_trying
+        if day.date.weekday() in weekdays and first <= day.date < end and day.worth_trying
     ]
     return sorted(hits, key=lambda d: d.date)
 

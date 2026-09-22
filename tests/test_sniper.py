@@ -22,6 +22,7 @@ def config(**kwargs: Any) -> Config:
         "vehicle_fuel_id": 2,
         "weekdays": (1, 3),
         "horizon_days": 14,
+        "giveup_time": None,
         "resync_seconds": 1800,
         "confirm_tries": 3,
         "confirm_gap": 0.0,
@@ -235,3 +236,44 @@ def test_the_expiry_alert_is_retried_when_slack_is_down():
 
     assert state.session_alert_sent
     assert len(slack.messages) == 2
+
+
+def test_with_every_target_booked_a_tick_costs_zero_requests():
+    """Si no falta ningún martes ni jueves, el tic no habla con Ronspot en absoluto."""
+    todos = {
+        d.isoformat(): "21 Nivel 4"
+        for d in [
+            dt.date(2026, 10, 6),
+            dt.date(2026, 10, 8),
+            dt.date(2026, 10, 13),
+            dt.date(2026, 10, 15),
+        ]
+    }
+    state = State(last_sweep=0.0, covered=todos)
+    fake = FakeRonspot(weeks={"2026-10-05": "week_open.json"}, bookable={"2026-10-06"})
+
+    report, _, slack = tick(fake, state, now=60.0)
+
+    assert fake.calls == []
+    assert report.polled_weeks == 0 and report.booked == [] and slack.messages == []
+
+
+def test_the_half_hourly_sweep_still_runs_and_keeps_the_session_warm():
+    """Ese barrido es lo que detecta una cancelación ajena y, de paso, no deja morir la
+    cookie por inactividad."""
+    todos = {
+        d.isoformat(): "21 Nivel 4"
+        for d in [
+            dt.date(2026, 10, 6),
+            dt.date(2026, 10, 8),
+            dt.date(2026, 10, 13),
+            dt.date(2026, 10, 15),
+        ]
+    }
+    state = State(last_sweep=0.0, covered=todos)
+    fake = FakeRonspot(weeks={"2026-10-05": "week_open.json"})
+
+    report, _, _ = tick(fake, state, now=1801.0)
+
+    assert report.polled_weeks == 3
+    assert "claimSpot" not in " ".join(fake.paths())

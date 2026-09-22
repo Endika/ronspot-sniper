@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_CONFIG = Path("~/ronspot/config.toml").expanduser()
+
+
+def _parse_time(raw: object) -> dt.time | None:
+    """Hora de Madrid a partir de la cual el día en curso deja de interesar."""
+    if raw in (None, "", False):
+        return None
+    return dt.time.fromisoformat(str(raw))
 
 
 @dataclass(frozen=True)
@@ -19,6 +27,7 @@ class Config:
     vehicle_fuel_id: int
     weekdays: tuple[int, ...]
     horizon_days: int
+    giveup_time: dt.time | None
     confirm_tries: int
     confirm_gap: float
     resync_seconds: int
@@ -41,6 +50,7 @@ class Config:
             vehicle_fuel_id=int(ronspot.get("vehicle_fuel_id", 2)),
             weekdays=tuple(sniper.get("weekdays", [1, 3])),
             horizon_days=int(sniper.get("horizon_days", 14)),
+            giveup_time=_parse_time(sniper.get("giveup_time", "09:30")),
             confirm_tries=int(sniper.get("confirm_tries", 8)),
             confirm_gap=float(sniper.get("confirm_gap", 1.5)),
             resync_seconds=int(sniper.get("resync_minutes", 30)) * 60,
