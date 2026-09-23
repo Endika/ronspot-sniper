@@ -26,11 +26,11 @@ If you are going to touch this, here is what saves you the night it cost me:
 
 ## Getting started
 
-You need Python 3.11+, Node 20+ and a Ronspot account.
+You need Python 3.11+, [uv](https://docs.astral.sh/uv/), Node 20+ and a Ronspot account.
 
 ```sh
 git clone https://github.com/Endika/ronspot-sniper && cd ronspot-sniper
-python3 -m venv .venv && .venv/bin/pip install -e .
+make install
 npm install
 ```
 
@@ -51,17 +51,19 @@ Your password and the reCAPTCHA token are redacted before anything touches disk.
 Set `weekdays` and `giveup_time`, then check it sees you correctly:
 
 ```sh
-.venv/bin/python -m ronspot_sniper --config ~/.ronspot/config.toml --status
+make status
 ```
 
 ## Usage
 
 ```sh
-python -m ronspot_sniper --config ~/.ronspot/config.toml            # one tick
-python -m ronspot_sniper --config ~/.ronspot/config.toml --dry-run  # look, don't book
-python -m ronspot_sniper --config ~/.ronspot/config.toml --status   # what I have, what's missing
-python -m ronspot_sniper --config ~/.ronspot/config.toml --report   # send that summary
+make tick      # one tick
+make dry-run   # look, don't book
+make status    # what I have, what's missing
+make report    # send that summary
 ```
+
+They read `~/.ronspot/config.toml`; point them elsewhere with `make status CONFIG=path`.
 
 With nothing to report it prints nothing and notifies nobody. That is deliberate: it runs
 every minute.
@@ -183,9 +185,7 @@ node tools/capture.mjs ~/.ronspot
 ## Quality gates
 
 ```sh
-.venv/bin/ruff check . && .venv/bin/ruff format --check .
-.venv/bin/mypy
-.venv/bin/python -m pytest tests/ -q
+make check    # lint, format, types and tests; `make format` fixes what it can
 ```
 
 Tests run against an in-memory Ronspot fed with real, anonymised portal responses in

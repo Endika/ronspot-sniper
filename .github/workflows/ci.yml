@@ -21,27 +21,29 @@ jobs:
       matrix:
         # 3.11 is what the Raspberry Pi runs; the rest so we do not fall behind.
         python: ["3.11", "3.12", "3.13"]
+    env:
+      UV_PYTHON: ${{ matrix.python }}
+      RUFF_OUTPUT_FORMAT: github
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v7
+      - uses: astral-sh/setup-uv@v7
         with:
-          python-version: ${{ matrix.python }}
-          cache: pip
+          enable-cache: true
 
-      - run: pip install -e ".[dev]"
+      - run: make install
 
       - name: lint
-        run: ruff check --output-format=github .
+        run: make lint
 
       - name: format
-        run: ruff format --check .
+        run: make format-check
 
       - name: types
-        run: mypy
+        run: make types
 
       - name: tests
-        run: pytest -q
+        run: make test
 
   capture-tool:
     name: capture.mjs
