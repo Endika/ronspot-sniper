@@ -12,7 +12,7 @@ keywords = ["ronspot", "parking", "automation", "cron"]
 requires-python = ">=3.11"
 dependencies = ["requests>=2.31"]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", "types-requests"]
 
 [project.scripts]
