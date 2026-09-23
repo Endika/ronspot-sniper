@@ -152,7 +152,7 @@ getting the spot.
 
 ```
 * * * * * cd ~/ronspot-sniper && flock -n /tmp/ronspot.lock .venv/bin/python -m ronspot_sniper --config ~/.ronspot/config.toml >> ~/.ronspot/sniper.log 2>&1
-0 8 * * * cd ~/ronspot-sniper && flock -n /tmp/ronspot.lock .venv/bin/python -m ronspot_sniper --config ~/.ronspot/config.toml --report >> ~/.ronspot/sniper.log 2>&1
+0 8 * * * cd ~/ronspot-sniper && flock -w 120 /tmp/ronspot.lock .venv/bin/python -m ronspot_sniper --config ~/.ronspot/config.toml --report >> ~/.ronspot/sniper.log 2>&1
 0 5 * * * [ -f ~/.ronspot/sniper.log ] && [ $(stat -c%s ~/.ronspot/sniper.log) -gt 1048576 ] && : > ~/.ronspot/sniper.log
 ```
 
