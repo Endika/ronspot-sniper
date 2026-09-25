@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ronspot-sniper"
-version = "0.2.0"
+version = "0.2.1"
 description = "Caza plazas de parking en Ronspot en cuanto alguien libera hueco"
 readme = "README.md"
 license = "MIT"

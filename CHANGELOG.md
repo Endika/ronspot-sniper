@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/Endika/ronspot-sniper/compare/v0.2.0...v0.2.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* stop chasing Dublin's today once it is already tomorrow in Madrid ([323096d](https://github.com/Endika/ronspot-sniper/commit/323096d8519bdc1f93838b5e2a3c847f4376c185))
+
 ## [0.2.0](https://github.com/Endika/ronspot-sniper/compare/v0.1.0...v0.2.0) (2026-09-23)
 
 
