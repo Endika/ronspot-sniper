@@ -45,6 +45,15 @@ def wanted_dates(
     return out
 
 
+def still_chasing_today(today: dt.date, local_now: dt.datetime, give_up_at: dt.time | None) -> bool:
+    """`today` is Ronspot's date, the cutoff is local: between midnight and 1am in Madrid,
+    Dublin's today is a day that has already gone by, not one still before 09:30."""
+    local_today = local_now.date()
+    if local_today != today:
+        return local_today < today
+    return give_up_at is None or local_now.time() < give_up_at
+
+
 def weeks_to_poll(
     today: dt.date,
     weekdays: Collection[int],

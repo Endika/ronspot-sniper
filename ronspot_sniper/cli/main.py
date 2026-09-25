@@ -112,8 +112,8 @@ def main(argv: list[str] | None = None) -> int:
     today = dt.datetime.now(RONSPOT_TZ).date()
     now = time.time()
     give_up_at = settings.give_up_at
-    include_today = (
-        give_up_at is None or dt.datetime.now(ZoneInfo(settings.local_tz)).time() < give_up_at
+    include_today = policy.still_chasing_today(
+        today, dt.datetime.now(ZoneInfo(settings.local_tz)), give_up_at
     )
 
     if args.status or args.report:

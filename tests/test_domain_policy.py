@@ -1,4 +1,5 @@
 import datetime as dt
+from zoneinfo import ZoneInfo
 
 from ronspot_sniper.domain import policy
 from tests.fakes import day
@@ -93,3 +94,28 @@ def test_already_mine_only_looks_inside_the_window():
     held = policy.already_mine(days, TUE_THU, TODAY)
 
     assert [d.date.isoformat() for d in held] == ["2026-09-24"]
+
+
+MADRID = ZoneInfo("Europe/Madrid")
+
+
+def test_today_is_chased_until_the_cutoff_in_local_time():
+    morning = dt.datetime(2026, 9, 22, 9, 29, tzinfo=MADRID)
+    late = dt.datetime(2026, 9, 22, 9, 30, tzinfo=MADRID)
+
+    assert policy.still_chasing_today(TODAY, morning, dt.time(9, 30))
+    assert not policy.still_chasing_today(TODAY, late, dt.time(9, 30))
+
+
+def test_dublins_today_is_already_yesterday_in_madrid_between_midnight_and_one():
+    """At 00:30 in Madrid Ronspot still says 22/09: that day is over, not before the cutoff."""
+    after_midnight = dt.datetime(2026, 9, 23, 0, 30, tzinfo=MADRID)
+
+    assert not policy.still_chasing_today(TODAY, after_midnight, dt.time(9, 30))
+    assert not policy.still_chasing_today(TODAY, after_midnight, None)
+
+
+def test_without_a_cutoff_today_is_chased_all_day():
+    night = dt.datetime(2026, 9, 22, 23, 59, tzinfo=MADRID)
+
+    assert policy.still_chasing_today(TODAY, night, None)
