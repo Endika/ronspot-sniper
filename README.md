@@ -45,6 +45,7 @@ and close the window. On close you get, in `~/.ronspot`:
 
 - `session.json` — the session cookie
 - `config.toml` — your GUID, car park and vehicle, already filled in
+- `traffic.jsonl` — every portal request and response the capture saw
 
 Your password and the reCAPTCHA token are redacted before anything touches disk.
 
@@ -172,7 +173,7 @@ missing, **it makes no request at all**.
 | One day pending | 2 |
 | Re-sync, every 30 min | 3 |
 
-On a 429 or a 403 it backs off on its own, exponentially from 5 minutes to 2 hours.
+On a 401, 403 or 429 it backs off on its own, exponentially from 5 minutes to 2 hours.
 
 ## Re-seeding the cookie
 
@@ -195,10 +196,14 @@ too.
 ## What this stores, and where
 
 - **Your Ronspot session cookie**, in `session.json`. It is equivalent to being inside
-  your account: anyone holding it can see and change your bookings. Written `600`, and it
-  must **never** reach git.
+  your account: anyone holding it can see and change your bookings. `tools/capture.mjs`
+  writes it with your default permissions, so `chmod 600` it, and it must **never** reach
+  git.
 - **Your Slack token or Discord webhook**, in `config.toml`. Same treatment.
-- `config.toml`, `session.json` and `state.json` are in `.gitignore`. Check with
+- **Your portal traffic from the capture**, in `traffic.jsonl`: names, bookings and whatever
+  else the portal answered, with only the password and reCAPTCHA token redacted.
+- They all live in `~/.ronspot`, outside the clone. If you keep any inside it: `config.toml`,
+  `session.json` and `state.json` are in `.gitignore`, `traffic.jsonl` is not. Check with
   `git status` before your first commit.
 
 Your password is **never stored**: `tools/capture.mjs` redacts it, along with the
@@ -221,7 +226,8 @@ not a public issue.
 
 ## Language
 
-Code, comments and docs are in English. Commit messages are in Spanish.
+Code, comments, docs and commit messages are in English. The early commit history is in
+Spanish.
 
 ## License
 
