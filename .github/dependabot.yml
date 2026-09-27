@@ -11,6 +11,9 @@ updates:
       # Dev tooling grouped: one PR per types-* stub is noise.
       dev:
         patterns: ["pytest*", "ruff", "mypy", "types-*"]
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: npm
     directory: "/"
@@ -27,3 +30,6 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+        update-types:
+          - minor
+          - patch
