@@ -119,7 +119,12 @@ def test_an_expired_cookie_is_told_apart_from_a_real_answer():
         build(FakeTransport(weeks={"2026-09-28": "login.html"})).week(dt.date(2026, 9, 28))
 
 
-@pytest.mark.parametrize("status", [401, 403, 429])
+def test_a_401_is_an_expired_session_so_the_alert_goes_out():
+    with pytest.raises(SessionExpired):
+        build(FakeTransport(status=401)).week(dt.date(2026, 9, 28))
+
+
+@pytest.mark.parametrize("status", [403, 429])
 def test_rate_limits_surface_as_their_own_error(status):
     with pytest.raises(RateLimited) as caught:
         build(FakeTransport(status=status)).week(dt.date(2026, 9, 28))

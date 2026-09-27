@@ -173,7 +173,7 @@ missing, **it makes no request at all**.
 | One day pending | 2 |
 | Re-sync, every 30 min | 3 |
 
-On a 401, 403 or 429 it backs off on its own, exponentially from 5 minutes to 2 hours.
+On a 403 or 429 it backs off on its own, exponentially from 5 minutes to 2 hours.
 
 ## Re-seeding the cookie
 

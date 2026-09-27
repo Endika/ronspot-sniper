@@ -88,7 +88,9 @@ class RonspotGateway:
             response = self._http.post(f"{self.base_url}{path}", data=data, timeout=20)
         except requests.RequestException as exc:
             raise Unreachable(f"{path}: {exc}") from exc
-        if response.status_code in (401, 403, 429):
+        if response.status_code == 401:
+            raise SessionExpired(f"{path}: HTTP 401")
+        if response.status_code in (403, 429):
             raise RateLimited(response.status_code)
         if response.status_code >= 400:
             log.warning("Ronspot answered %s on %s", response.status_code, path)
