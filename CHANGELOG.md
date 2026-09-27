@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/Endika/ronspot-sniper/compare/v0.2.2...v0.2.3) (2026-09-27)
+
+
+### Bug Fixes
+
+* treat a 401 as an expired session so the alert goes out ([f9fcc8a](https://github.com/Endika/ronspot-sniper/commit/f9fcc8a7e0023230b4ea40fff75caa5555fb70e3))
+
 ## [0.2.2](https://github.com/Endika/ronspot-sniper/compare/v0.2.1...v0.2.2) (2026-09-27)
 
 
