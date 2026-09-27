@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/Endika/ronspot-sniper/compare/v0.2.1...v0.2.2) (2026-09-27)
+
+
+### Documentation
+
+* correct the session file mode, status codes and commit language, and list traffic.jsonl ([d23beea](https://github.com/Endika/ronspot-sniper/commit/d23beeaa31ab6473883840be1f26d2fa324f0475))
+
 ## [0.2.1](https://github.com/Endika/ronspot-sniper/compare/v0.2.0...v0.2.1) (2026-09-25)
 
 
