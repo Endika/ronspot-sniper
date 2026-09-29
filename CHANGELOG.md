@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.5](https://github.com/Endika/ronspot-sniper/compare/v0.2.4...v0.2.5) (2026-09-29)
+
+
+### Bug Fixes
+
+* **capture:** close the browser when its last window closes ([52cd44e](https://github.com/Endika/ronspot-sniper/commit/52cd44e9b7ae9f5ac16aacc61b158c9b2edca19d))
+
 ## [0.2.4](https://github.com/Endika/ronspot-sniper/compare/v0.2.3...v0.2.4) (2026-09-29)
 
 
