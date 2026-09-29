@@ -114,6 +114,14 @@ def test_release_hands_the_booking_back():
     assert transport.body("releaseAssignSpot")["SpotID"] == "25228"
 
 
+def test_the_session_ronspot_rotates_is_handed_back():
+    gateway = build(FakeTransport(rotate_session_to="rotated"))
+
+    gateway.week(dt.date(2026, 9, 28))
+
+    assert gateway.cookies() == {"ci_session": "rotated"}
+
+
 def test_an_expired_cookie_is_told_apart_from_a_real_answer():
     with pytest.raises(SessionExpired):
         build(FakeTransport(weeks={"2026-09-28": "login.html"})).week(dt.date(2026, 9, 28))

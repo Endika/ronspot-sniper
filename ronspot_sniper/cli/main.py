@@ -14,9 +14,9 @@ from ..adapters.notify import build as build_notifier
 from ..adapters.ronspot import RonspotGateway
 from ..adapters.state import load_state, save_state
 from ..application import TickReport, daily_summary, pretty_date, run_tick
-from ..config import DEFAULT_CONFIG, Settings, load_cookies
+from ..config import DEFAULT_CONFIG, Settings, load_cookies, save_cookies
 from ..domain import policy
-from ..ports import BookingGateway, Notifier
+from ..ports import Notifier
 
 RONSPOT_TZ = ZoneInfo("Europe/Dublin")
 """Ronspot is Irish and its clock runs in Dublin: the capture shows `date: 2026-09-22`
@@ -24,7 +24,7 @@ next to `zone_current_time: 00:25` while the Pi in Madrid read 01:25. Using the 
 date would shift the whole window by a day between midnight and 1am."""
 
 
-def build_gateway(settings: Settings) -> BookingGateway:
+def build_gateway(settings: Settings) -> RonspotGateway:
     cfg = settings.gateway
     return RonspotGateway(
         load_cookies(cfg.session_path),
@@ -46,6 +46,12 @@ def bail(*lines: str) -> int:
     for extra in lines[1:]:
         print(f"  {extra}", file=sys.stderr)
     return 2
+
+
+def keep_session(gateway: RonspotGateway, settings: Settings, report: TickReport) -> None:
+    # A dead session may come back with an anonymous cookie; the seed is no worse to keep.
+    if report.stopped != "session expired":
+        save_cookies(settings.gateway.session_path, gateway.cookies())
 
 
 def print_report(report: TickReport, dry_run: bool) -> None:
@@ -144,6 +150,7 @@ def main(argv: list[str] | None = None) -> int:
             include_today=include_today,
             stopped=report.stopped,
         )
+        keep_session(gateway, settings, report)
         if args.report:
             notifier_for(settings).send(summary)
         print(summary)
@@ -160,6 +167,7 @@ def main(argv: list[str] | None = None) -> int:
         dry_run=args.dry_run,
         include_today=include_today,
     )
+    keep_session(gateway, settings, report)
     if not args.dry_run:
         save_state(state, settings.state_path)
     print_report(report, args.dry_run)
