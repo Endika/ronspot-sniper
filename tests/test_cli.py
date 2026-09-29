@@ -105,3 +105,31 @@ def test_an_unknown_notifier_is_a_message_not_a_crash(tmp_path, capsys):
 
     assert main(["--config", str(cfg), "--dry-run"]) == 2
     assert "telegramme" in capsys.readouterr().err
+
+
+def test_a_tick_leaves_the_rotated_session_on_disk(tmp_path, monkeypatch):
+    import importlib
+
+    from ronspot_sniper.adapters.ronspot import RonspotGateway
+    from ronspot_sniper.cli import main
+    from ronspot_sniper.config import load_cookies
+    from tests.fakes import FakeTransport
+
+    session = tmp_path / "session.json"
+    session.write_text(
+        '{"cookies": [{"name": "ci_session", "value": "old", "domain": "my.ronspot.ie"}]}'
+    )
+    cfg = tmp_path / "config.toml"
+    cfg.write_text(
+        '[ronspot]\nguid = "x"\nzone_id = 1\n'
+        f'[paths]\nsession = "{session}"\nstate = "{tmp_path / "s.json"}"\n'
+    )
+    gateway = RonspotGateway(
+        {"ci_session": "old"}, "x", 1, transport=FakeTransport(rotate_session_to="new")
+    )
+    cli = importlib.import_module("ronspot_sniper.cli.main")
+    monkeypatch.setattr(cli, "build_gateway", lambda _: gateway)
+
+    main(["--config", str(cfg), "--dry-run"])
+
+    assert load_cookies(session) == {"ci_session": "new"}

@@ -118,7 +118,10 @@ class FakeTransport:
         vehicles_status: int | None = None,
         vehicles_body: str | None = None,
         offline: bool = False,
+        rotate_session_to: str | None = None,
     ) -> None:
+        self.cookies = requests.cookies.RequestsCookieJar()
+        self._rotate_to = rotate_session_to
         self.calls: list[tuple[str, dict[str, str]]] = []
         self._weeks = weeks or {}
         self._claim = claim
@@ -134,6 +137,8 @@ class FakeTransport:
         path = urlsplit(url).path
         fields = {k: str(v) for k, v in (data or {}).items()}
         self.calls.append((path, fields))
+        if self._rotate_to:
+            self.cookies.set("ci_session", self._rotate_to, domain="my.ronspot.ie")
         if self._offline:
             raise requests.ConnectionError("the router is rebooting")
         if self._status != 200:

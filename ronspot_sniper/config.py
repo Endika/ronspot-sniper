@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
+import tempfile
 import tomllib
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -96,3 +99,29 @@ def load_cookies(path: Path) -> dict[str, str]:
     raw = json.loads(path.read_text())
     cookies = raw["cookies"] if isinstance(raw, dict) and "cookies" in raw else raw
     return {c["name"]: c["value"] for c in cookies if "ronspot" in c.get("domain", "")}
+
+
+def save_cookies(path: Path, fresh: Mapping[str, str]) -> bool:
+    """Writes back the values Ronspot rotated, so the next tick doesn't replay the seed.
+
+    Only cookies the file already has are touched. Returns whether anything changed."""
+    raw = json.loads(path.read_text())
+    cookies = raw["cookies"] if isinstance(raw, dict) and "cookies" in raw else raw
+    changed = False
+    for cookie in cookies:
+        value = fresh.get(cookie["name"])
+        if "ronspot" in cookie.get("domain", "") and value and value != cookie["value"]:
+            cookie["value"] = value
+            changed = True
+    if not changed:
+        return False
+    handle, tmp = tempfile.mkstemp(dir=path.parent, prefix=".session-")
+    try:
+        with os.fdopen(handle, "w") as stream:
+            json.dump(raw, stream)
+        Path(tmp).replace(path)
+        path.chmod(0o600)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+    return True

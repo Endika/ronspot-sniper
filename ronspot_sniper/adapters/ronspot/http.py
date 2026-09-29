@@ -83,6 +83,11 @@ class RonspotGateway:
         self._sleep = sleep
         self._token = ""
 
+    def cookies(self) -> dict[str, str]:
+        """The session as it stands now: Ronspot rotates `ci_session` as we go."""
+        jar = getattr(self._http, "cookies", None) or []
+        return {c.name: c.value for c in jar if "ronspot" in c.domain and c.value}
+
     def _fetch(self, path: str, data: Mapping[str, Any]) -> Response:
         try:
             response = self._http.post(f"{self.base_url}{path}", data=data, timeout=20)
