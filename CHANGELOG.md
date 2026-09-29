@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.4](https://github.com/Endika/ronspot-sniper/compare/v0.2.3...v0.2.4) (2026-09-29)
+
+
+### Bug Fixes
+
+* keep the session cookie Ronspot rotates so it stops expiring daily ([24126c8](https://github.com/Endika/ronspot-sniper/commit/24126c85608054d3e2cd51ae109b2fd697abe6b8))
+
 ## [0.2.3](https://github.com/Endika/ronspot-sniper/compare/v0.2.2...v0.2.3) (2026-09-27)
 
 
