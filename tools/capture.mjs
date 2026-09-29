@@ -111,9 +111,17 @@ ctx.on('response', async res => {
   }) + '\n')
 })
 
-const dump = setInterval(async () => {
+async function saveState() {
   try { writeFileSync(STATE, JSON.stringify(await ctx.storageState(), null, 2)) } catch { /* closing */ }
-}, 5000)
+}
+const dump = setInterval(saveState, 5000)
+
+// Closing the window alone leaves Chromium running on the session just seeded to the Pi.
+ctx.on('page', page => page.on('close', async () => {
+  if (ctx.pages().length) return
+  await saveState()
+  await browser.close()
+}))
 
 await (await ctx.newPage()).goto('https://my.ronspot.ie/')
 console.log(`
