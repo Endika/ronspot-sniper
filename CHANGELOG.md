@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.6](https://github.com/Endika/ronspot-sniper/compare/v0.2.5...v0.2.6) (2026-10-02)
+
+
+### Bug Fixes
+
+* use pass in protocol bodies so CodeQL stops flagging them ([044863a](https://github.com/Endika/ronspot-sniper/commit/044863a2242fc2d13a48479c79e7761c317b5540))
+
 ## [0.2.5](https://github.com/Endika/ronspot-sniper/compare/v0.2.4...v0.2.5) (2026-09-29)
 
 
