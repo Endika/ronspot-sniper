@@ -47,30 +47,30 @@ class BookingGateway(Protocol):
 
     def week(self, start: dt.date) -> Week:
         """The seven days starting on `start`."""
-        ...
+        pass
 
     def bookable(self, date: dt.date) -> bool:
         """Whether a spot can actually be taken on `date`, right now."""
-        ...
+        pass
 
     def claim(self, date: dt.date) -> ClaimResult:
         """Ask for a spot. Acceptance does not mean the booking is firm."""
-        ...
+        pass
 
     def confirm(self, date: dt.date, *, tries: int = 8, gap: float = 1.5) -> Booking | None:
         """Wait for the claim to become a real booking, or give up."""
-        ...
+        pass
 
     def release(self, booking: Booking) -> bool:
         """Give a booking back."""
-        ...
+        pass
 
 
 @runtime_checkable
 class Notifier(Protocol):
     def send(self, text: str) -> bool:
         """Deliver `text`. Returns whether it actually got through."""
-        ...
+        pass
 
 
 __all__ = [

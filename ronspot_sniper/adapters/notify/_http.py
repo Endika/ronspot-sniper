@@ -8,9 +8,11 @@ from typing import Any, Protocol
 
 class HttpResponse(Protocol):
     @property
-    def status_code(self) -> int: ...
+    def status_code(self) -> int:
+        pass
 
-    def json(self) -> Any: ...
+    def json(self) -> Any:
+        pass
 
 
 class HttpClient(Protocol):
@@ -21,4 +23,5 @@ class HttpClient(Protocol):
         json: Any = ...,
         headers: Mapping[str, str] | None = ...,
         timeout: float | None = ...,
-    ) -> HttpResponse: ...
+    ) -> HttpResponse:
+        pass

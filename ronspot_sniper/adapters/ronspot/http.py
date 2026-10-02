@@ -25,12 +25,15 @@ VEHICLES = "/member/Claim_release/GetAvalablevehicleTypeDayWise"
 
 class Response(Protocol):
     @property
-    def status_code(self) -> int: ...
+    def status_code(self) -> int:
+        pass
 
     @property
-    def text(self) -> str: ...
+    def text(self) -> str:
+        pass
 
-    def json(self) -> Any: ...
+    def json(self) -> Any:
+        pass
 
 
 class Transport(Protocol):
@@ -42,7 +45,8 @@ class Transport(Protocol):
         data: Mapping[str, Any] | None = ...,
         *,
         timeout: float | None = ...,
-    ) -> Response: ...
+    ) -> Response:
+        pass
 
 
 def _session(base_url: str, cookies: Mapping[str, str]) -> requests.Session:
